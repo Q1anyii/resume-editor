@@ -2036,7 +2036,8 @@ function exportImgPdf(){
       }
 
       const pos = String(state.meta.jobTitle || '').split(/[｜|]/)[0].trim();
-      pdf.save([state.meta.name || '简历', pos].filter(Boolean).join('-') + '.pdf');
+      /* 统一命名：姓名-求职意向-简历 */
+      pdf.save([state.meta.name || '简历', pos, '简历'].filter(Boolean).join('-') + '.pdf');
       done(true);
     }catch(err){
       console.error(err); done(false);
