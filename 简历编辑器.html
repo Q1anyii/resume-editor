@@ -993,11 +993,14 @@ function renderEditor(){
   renderRail();
 }
 
-/* 最左模块跳转条：列出个人信息 + 每个可见模块，点击滚到对应卡片 */
+/* 最左模块跳转条：设置 + 个人信息 + 每个可见模块，点击滚到对应卡片 */
 function renderRail(){
   const railEl = document.getElementById('rail');
   if(!railEl) return;
-  const parts = [`<button class="rail-btn" data-jump="meta" title="个人信息">个人</button>`];
+  const parts = [
+    `<button class="rail-btn" data-jump="settings" title="版式 · 间距 · 配色 · AI 对齐">设置</button>`,
+    `<button class="rail-btn" data-jump="meta" title="个人信息">个人</button>`
+  ];
   state.order.forEach(id=>{
     const m = state.modules[id];
     if(!m || !m.visible) return;
@@ -1008,19 +1011,32 @@ function renderRail(){
   syncRailActive();
 }
 
-/* 滚动时高亮当前所在模块 */
+/* 滚动时高亮当前所在板块（设置面板也算一块） */
 function syncRailActive(){
   const railEl = document.getElementById('rail');
   if(!railEl) return;
-  const ids = ['meta'].concat(state.order.filter(id=> state.modules[id] && state.modules[id].visible));
+  const ids = ['settings','meta'].concat(state.order.filter(id=> state.modules[id] && state.modules[id].visible));
   let active = ids[0];
   ids.forEach(id=>{
-    const el = document.getElementById('card-' + id);
+    const el = id === 'settings' ? document.getElementById('panelSettings') : document.getElementById('card-' + id);
     if(el && el.getBoundingClientRect().top <= 76) active = id;
   });
   railEl.querySelectorAll('.rail-btn').forEach(b=>{
     b.classList.toggle('on', b.dataset.jump === active);
   });
+}
+
+/* 把左栏滚到某块卡片的顶部；平滑滚动没动起来（部分环境忽略 smooth）就 900ms 后直接落位 */
+function scrollCardIntoView(el){
+  if(!el) return;
+  const seq = ++jumpSeq;
+  const before = editorEl.scrollTop;
+  const top = Math.max(0, el.getBoundingClientRect().top - editorEl.getBoundingClientRect().top + before - 12);
+  editorEl.scrollTo({ top, behavior: 'smooth' });
+  setTimeout(()=>{
+    if(seq !== jumpSeq) return;
+    if(editorEl.scrollTop === before && top !== before) editorEl.scrollTop = top;
+  }, 900);
 }
 
 (()=>{
@@ -1029,13 +1045,10 @@ function syncRailActive(){
   railEl.addEventListener('click', e=>{
     const b = e.target.closest('[data-jump]');
     if(!b) return;
-    if(b.dataset.jump === 'meta'){
-      const seq = ++jumpSeq;
-      editorEl.scrollTo({ top: 0, behavior: 'smooth' });
-      setTimeout(()=>{ if(seq === jumpSeq && editorEl.scrollTop > 0) editorEl.scrollTop = 0; }, 900);
-    }else{
-      jumpToNode(b.dataset.jump, null, null);
-    }
+    const jump = b.dataset.jump;
+    if(jump === 'settings') scrollCardIntoView(document.getElementById('panelSettings'));
+    else if(jump === 'meta') scrollCardIntoView(document.getElementById('card-meta'));
+    else jumpToNode(jump, null, null);
     railEl.querySelectorAll('.rail-btn').forEach(x=> x.classList.toggle('on', x === b));
   });
   let ticking = false;
