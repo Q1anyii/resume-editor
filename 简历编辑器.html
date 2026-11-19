@@ -991,8 +991,7 @@ const AI_SYSTEM = [
   '【输出】只输出一个 JSON 对象，不要 markdown 代码块，不要任何解释文字：',
   '{"changes":[{"path":"原样复制输入的 path","newText":"改写后的完整文本","reason":"不超过20字"}],"notes":["不超过30字的提示"]}',
   '没有把握的字段不要放进 changes；changes 可以是空数组。'
-].join('
-');
+].join('\n');
 
 /* 自定义 system prompt：留空则回落到 AI_SYSTEM，填了就用用户自己的那份 */
 function activeSystemPrompt(){
