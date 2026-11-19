@@ -196,6 +196,8 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
 #aiResult::-webkit-scrollbar{width:6px}
 #aiResult::-webkit-scrollbar-thumb{background:#ccd6e3;border-radius:3px}
 .ai-jd{height:96px;min-height:96px!important;max-height:96px;overflow-y:auto;resize:none}
+.ai-sys{height:132px;min-height:132px!important;max-height:300px;overflow-y:auto;resize:vertical;
+  font-family:ui-monospace,Consolas,"Courier New",monospace;font-size:11px;line-height:1.55}
 .add-btn{width:100%;height:30px;border:1px dashed #c7d3e3;background:#f7f9fc;color:var(--brand);
   border-radius:7px;font-size:12.5px;font-weight:600}
 .add-btn:hover{background:#eef3fb;border-color:var(--brand-2)}
@@ -537,7 +539,7 @@ function loadState(){
         s.layout = Object.assign({ fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' }, s.layout || {});
         if(!s.theme) s.theme = 'navy';
         s.ai = Object.assign({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
-          key: '', jd: '', scope: 'all' }, s.ai || {});
+          key: '', jd: '', scope: 'all', systemPrompt: '' }, s.ai || {});
         s.meta = normalizeMeta(s.meta);
         s.ui = Object.assign({}, s.ui || {});   /* 折叠等纯界面状态 */
         return s;
@@ -710,6 +712,14 @@ function renderEditor(){
             <input data-path="ai.model" value="${esc(A.model)}"></div>
           <div class="f"><label>API Key（只存这台电脑，导出配置不带）</label>
             <input type="password" data-path="ai.key" value="${esc(A.key)}" placeholder="sk-…" autocomplete="off"></div>
+          <div class="f"><label>System Prompt（留空 = 用内置默认）</label>
+            <textarea class="ai-sys" data-path="ai.systemPrompt" placeholder="留空即使用内置默认提示词；填写后完全替换默认——记得保留「只输出 JSON」这条，否则解析会失败">${esc(A.systemPrompt || '')}</textarea>
+            <div class="ai-note" style="margin:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span id="aiSysState">当前生效：${sysPromptInfo()}</span>
+              <button class="btn sm" data-prompt-act="fill" title="把内置默认灌进输入框，方便在上面改">填入默认</button>
+              <button class="btn sm" data-prompt-act="reset" title="清空输入框，回到内置默认">恢复默认</button>
+            </div>
+          </div>
         </div>
         <div class="ai-grid">
           <div class="f"><label>目标 JD（把岗位描述整段粘进来）</label>
@@ -984,6 +994,20 @@ const AI_SYSTEM = [
 ].join('
 ');
 
+/* 自定义 system prompt：留空则回落到 AI_SYSTEM，填了就用用户自己的那份 */
+function activeSystemPrompt(){
+  const c = (state && state.ai && state.ai.systemPrompt) || '';
+  return c.trim() || AI_SYSTEM;
+}
+function sysPromptInfo(){
+  const c = ((state && state.ai && state.ai.systemPrompt) || '').trim();
+  return c ? '自定义 · ' + c.length + ' 字' : '内置默认 · ' + AI_SYSTEM.length + ' 字';
+}
+function syncSysState(){
+  const el = document.getElementById('aiSysState');
+  if(el) el.textContent = '当前生效：' + sysPromptInfo();
+}
+
 /* 采集可改写字段：只取措辞类文本；姓名、联系行、时间、项目名、公司角色等事实字段一律锁定 */
 function collectFields(scope){
   const out = [];
@@ -1096,7 +1120,7 @@ async function runAi(scope){
       body: JSON.stringify({
         model: (cfg.model || 'deepseek-chat').trim() || 'deepseek-chat',
         messages: [
-          { role: 'system', content: AI_SYSTEM },
+          { role: 'system', content: activeSystemPrompt() },
           { role: 'user', content: userMsg }
         ],
         temperature: 0.3,
@@ -1470,7 +1494,10 @@ editorEl.addEventListener('input', e=>{
   setPath(p, val);
 
   /* AI 配置与 JD：只存盘，不触发预览重绘 */
-  if(p.indexOf('ai.') === 0){ save(); return; }
+  if(p.indexOf('ai.') === 0){
+    if(p === 'ai.systemPrompt') syncSysState();   /* 只更新「当前生效」那行，不重建输入框 */
+    save(); return;
+  }
 
   /* 联系行条目：改完单项立刻拼回 meta.contact，预览才跟着变 */
   if(p.indexOf('meta.contacts.') === 0) syncContact();
@@ -1534,6 +1561,17 @@ editorEl.addEventListener('change', e=>{
 editorEl.addEventListener('click', e=>{
   const btn = e.target.closest('button');
   if(!btn) return;
+
+  /* AI：System Prompt 的「填入默认 / 恢复默认」（不在模块卡片里，先处理） */
+  if(btn.dataset.promptAct){
+    const fill = btn.dataset.promptAct === 'fill';
+    state.ai.systemPrompt = fill ? AI_SYSTEM : '';
+    const ta = editorEl.querySelector('textarea[data-path="ai.systemPrompt"]');
+    if(ta) ta.value = state.ai.systemPrompt;
+    syncSysState(); save();
+    toast(fill ? '已填入内置默认，可在上面继续改' : '已清空，回到内置默认');
+    return;
+  }
 
   /* 折叠 / 展开：固定面板（data-fold）与模块卡片（data-act="fold"） */
   if(btn.dataset.fold){
@@ -2101,7 +2139,7 @@ document.getElementById('fileImport').addEventListener('change', e=>{
       state.layout = Object.assign({ fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' }, state.layout || {});
       if(!state.theme) state.theme = 'navy';
       state.ai = Object.assign({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
-        key: '', jd: '', scope: 'all' }, state.ai || {});
+        key: '', jd: '', scope: 'all', systemPrompt: '' }, state.ai || {});
       if(!state.ai.key && keepKey) state.ai.key = keepKey;   // 导入的配置不带 key，沿用本机已存的
       state.meta = normalizeMeta(state.meta);                // 旧配置只有一行 contact，补成条目
       renderEditor(); renderPreview(); applyLayout(); applyZoom(); save();
