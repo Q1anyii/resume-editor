@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>简历编辑器 · 拖拽排序 · 实时预览 · 导出 PDF</title>
+<title>简历</title>
 <style>
 /* ===== 编辑器外壳 ===== */
 *{box-sizing:border-box}
@@ -1347,6 +1347,17 @@ function bindSortables(){
    ===================================================================== */
 const pageEl = document.getElementById('page');
 
+/* 文件名 / 标签页标题统一规则：姓名-求职意向-简历（求职意向只取 ｜ 之前那一段） */
+function resumeFileName(){
+  const pos = String((state.meta && state.meta.jobTitle) || '').split(/[｜|]/)[0].trim();
+  return [(state.meta && state.meta.name) || '简历', pos, '简历'].filter(Boolean).join('-');
+}
+/* 打印「另存为 PDF」时浏览器默认拿文档标题当文件名，所以标题要跟着简历内容走 */
+function syncDocTitle(){
+  const t = resumeFileName();
+  if(document.title !== t) document.title = t;
+}
+
 function renderPreview(){
   const m = state.meta;
   let html = '';
@@ -1410,6 +1421,7 @@ function renderPreview(){
 
   pageEl.innerHTML = html;
   checkOverflow();
+  syncDocTitle();          /* 姓名 / 求职意向一改，浏览器标签页与打印默认文件名同步 */
 }
 
 /* 把排版参数写到 CSS 变量上 */
@@ -1916,12 +1928,10 @@ function exportHtmlSource(){
 
 function exportHtml(){
   const src = exportHtmlSource();
-  const m = state.meta;
-  const pos = String(m.jobTitle || '').split(/[｜|]/)[0].trim();
   const blob = new Blob([src], { type: 'text/html;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = [m.name || '简历', pos, '简历'].filter(Boolean).join('-') + '.html';
+  a.download = resumeFileName() + '.html';
   a.click();
   setTimeout(()=> URL.revokeObjectURL(a.href), 3000);
   toast('已导出 HTML（能直接打开，也能再导入本工具继续改）');
@@ -1929,6 +1939,7 @@ function exportHtml(){
 
 /* 打印路径：系统打印 → 矢量 PDF（文字可选中、可被 ATS 解析） */
 function exportPdf(){
+  syncDocTitle();          /* 「另存为 PDF」的默认文件名取自文档标题，打印前再兜一次 */
   toast('打印窗口已打开：目标「另存为 PDF」 · 纸张 A4 · 边距「无」 · 缩放保持默认；技术栈底条已强制打印，不用勾「背景图形」');
   setTimeout(()=> window.print(), 340);
 }
@@ -2079,9 +2090,8 @@ function exportImgPdf(){
         }
       }
 
-      const pos = String(state.meta.jobTitle || '').split(/[｜|]/)[0].trim();
       /* 统一命名：姓名-求职意向-简历 */
-      pdf.save([state.meta.name || '简历', pos, '简历'].filter(Boolean).join('-') + '.pdf');
+      pdf.save(resumeFileName() + '.pdf');
       done(true);
     }catch(err){
       console.error(err); done(false);
