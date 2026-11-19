@@ -285,6 +285,7 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
   <input type="file" id="fileImport" class="file-input" accept="application/json">
   <button class="btn" id="btnImportHtml" title="读取已有简历 HTML，解析成可编辑的模块">导入 HTML</button>
   <input type="file" id="fileHtml" class="file-input" accept=".html,.htm,text/html">
+  <button class="btn" id="btnExportHtml" title="导出一份干净的简历 HTML：可直接打开、可投递，也能再被本工具导入">导出 HTML</button>
   <button class="btn" id="btnImgPdf" title="生成位图 PDF，文件小但放大略糊">图像版 PDF</button>
   <button class="btn primary" id="btnPdf" title="调用系统打印，输出矢量 PDF，文字可选中、清晰">导出 PDF</button>
 </div>
@@ -727,6 +728,7 @@ function renderEditor(){
       内容会自动存到本机浏览器，关掉再打开还在。<br>
       <b>自定义加粗</b>：任何多行内容里选中一段字，点右侧 <b>B</b> 按钮即加粗；也可以手写 <b>**文字**</b>。预览、PDF 导出、截图都按加粗显示。<br>
       <b>AI 对齐 JD</b>：填 Base URL / 模型 / Key，粘贴 JD，点「生成修改建议」，逐条采用即可。建议列表在框内滚动，不会把面板撑长。Key 只存在这台电脑，请求直连你填的端点，不经中转；<b>导出配置不含 Key</b>。<br>
+      <b>导出 HTML</b>：把当前内容存成一份干净的简历网页——样式按当前字号 / 行距 / 主题一起写进去，双击就能看、可以直接当附件发；日后用「导入 HTML」还能读回来接着改。<br>
       <b>导出 PDF</b>：点右上角按钮 → 打印窗口里「目标」选 <b>另存为 PDF</b>、纸张 A4、边距「无」，得到矢量 PDF（文字可选中）。<br>
       右侧顶部若显示 <b>「超出 1 页」</b>，说明撑破了 A4，需精简几条 bullet 或换「紧凑」预设。
     </div>
@@ -1704,6 +1706,144 @@ window.addEventListener('resize', ()=> applyZoom());
 /* =====================================================================
    8. 导出 / 导入 / 打印
    ===================================================================== */
+/* ---------- 导出为独立 HTML ---------- */
+/* 生成一份语义化简历 HTML：h1 姓名 → 3 个 p（求职意向 / 联系行 / 摘要）→ h2 分段 → h3 项目 → p → ul li。
+   用途有两个：直接用浏览器打开 / 当附件投递；以及被本工具的「导入 HTML」原样读回来继续编辑。
+   样式和当前预览一致（同一套变量：字号、行距、模块距、主题色都按当前设置写死进去）。 */
+const EXPORT_CSS = `*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#e9edf2;-webkit-print-color-adjust:exact;print-color-adjust:exact;
+  font-family:"Noto Sans CJK SC","Microsoft YaHei","PingFang SC",system-ui,sans-serif}
+.resume{width:210mm;min-height:297mm;margin:20px auto;background:#fff;
+  padding:8mm 13mm 7.5mm 13mm;box-shadow:0 6px 26px rgba(30,50,80,.16);
+  font-size:var(--fs);line-height:var(--lh);color:var(--ink-main)}
+h1,h2,h3,p,ul,li{margin:0;padding:0}
+.r-name{font-size:calc(var(--fs) * 2.1505);margin:0 0 1.5pt 0;letter-spacing:5px;font-weight:700}
+.r-title{font-size:calc(var(--fs) * 1.0968);color:var(--accent);font-weight:600;margin:0 0 3.5pt 0;letter-spacing:1px}
+.r-contact{font-size:calc(var(--fs) * 0.9140);color:var(--ink-soft);margin:0 0 2.5pt 0}
+.r-summary{font-size:calc(var(--fs) * 0.9677);color:var(--ink-sub);margin:2pt 0 6pt 0;line-height:calc(var(--lh) * 0.968)}
+.r-h2{font-size:calc(var(--fs) * 1.2366);margin:var(--gap) 0 4.5pt 0;padding-bottom:2.5pt;
+  border-bottom:1.6pt solid var(--accent);color:var(--accent);font-weight:700;letter-spacing:1.5px}
+.r-h3{font-size:calc(var(--fs) * 1.1398);margin:calc(var(--gap) * 0.65) 0 1.5pt 0;color:var(--accent-deep);font-weight:700}
+.r-meta{font-size:calc(var(--fs) * 0.9140);color:var(--ink-sub);margin:0;line-height:calc(var(--lh) * 0.877)}
+.r-desc{font-size:calc(var(--fs) * 0.9140);font-weight:700;color:var(--accent-deep);margin:1.5pt 0 2.5pt 0;line-height:calc(var(--lh) * 0.903)}
+.r-p{font-size:calc(var(--fs) * 1);margin:0 0 2.8pt 0;line-height:var(--lh)}
+.r-ul{margin:2.8pt 0 0 0;padding-left:calc(var(--fs) * 1.344);list-style:none}
+.r-ul li{margin-bottom:3.1pt;line-height:var(--lh);text-align:left}
+.r-ul li::before{content:"\\25AA";display:inline-block;width:calc(var(--fs) * 1.129);
+  margin-left:calc(var(--fs) * -1.129);color:var(--accent);font-size:calc(var(--fs) * 0.989)}
+.r-code{font-family:"Noto Sans CJK SC",monospace;font-size:calc(var(--fs) * 0.8925);background:var(--accent-bg);color:var(--accent);
+  padding:1px 4px;border-radius:2px;font-weight:600}
+.r-strong,strong{font-weight:700;color:var(--accent-strong)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+@page{size:A4;margin:0}
+@media print{body{background:#fff}.resume{margin:0;box-shadow:none;width:210mm;min-height:0}}
+@media screen and (max-width:800px){body{padding:0}.resume{width:100%;margin:0;min-height:0;
+  box-shadow:none;padding:10mm 6mm}}`;
+
+function exportHtmlSource(){
+  const m = state.meta;
+  const L = state.layout || {};
+  const t = themeOf(state.theme);
+  const vars = [
+    '--fs:' + (L.fs || 9.3) + 'pt',
+    '--lh:' + (L.lh || 1.55),
+    '--gap:' + (L.gap || 10) + 'pt',
+    '--accent:' + t.accent,
+    '--accent-deep:' + t.deep,
+    '--accent-strong:' + t.strong,
+    '--accent-bg:' + t.bg,
+    '--ink-main:' + t.ink,
+    '--ink-sub:' + t.sub,
+    '--ink-soft:' + t.soft
+  ].join(';');
+
+  const out = [];
+  out.push('<h1 class="r-name">' + esc(m.name) + '</h1>');
+  if(m.jobTitle) out.push('<p class="r-title">求职意向：' + esc(m.jobTitle) + '</p>');
+  if(m.contact)  out.push('<p class="r-contact">' + richText(m.contact) + '</p>');
+  if(m.summary)  out.push('<p class="r-summary">' + richText(m.summary) + '</p>');
+
+  /* bullet 列表：隐藏的条目照旧不写进去（与预览、PDF 一致） */
+  const ulOf = list=>{
+    const on = (list || []).filter(b=> b.visible !== false);
+    if(!on.length) return '';
+    return '<ul class="r-ul">' + on.map(b=>
+      '<li>' + (b.label ? '<strong class="r-strong">' + esc(b.label) + '</strong>：' : '') + richText(b.text || '') + '</li>'
+    ).join('') + '</ul>';
+  };
+
+  state.order.forEach(id=>{
+    const mod = state.modules[id];
+    if(!mod || !mod.visible) return;
+    out.push('<h2 class="r-h2">' + esc(mod.title) + '</h2>');
+
+    if(mod.style === 'edu'){
+      (mod.items || []).forEach(it=>{
+        out.push('<p class="r-p">' + richText(it.text || '')
+          + (it.time ? ' ｜ <code class="r-code">' + esc(it.time) + '</code>' : '') + '</p>');
+      });
+    } else if(mod.style === 'project'){
+      (mod.items || []).forEach(it=>{
+        if(it.name) out.push('<h3 class="r-h3">' + esc(it.name) + '</h3>');
+        if(it.meta || it.stack){
+          const seg = [];
+          if(it.meta)  seg.push(richText(it.meta));
+          if(it.stack) seg.push('<span class="r-code">' + esc(it.stack) + '</span>');
+          /* 一个 p 里用 br 分两行：导入时按 br 拆成 meta / stack 两段，不会被误当成描述 */
+          out.push('<p class="r-meta">' + seg.join('<br>') + '</p>');
+        }
+        if(it.desc) out.push('<p class="r-desc">' + richText(it.desc) + '</p>');
+        const u = ulOf(it.bullets); if(u) out.push(u);
+      });
+    } else if(mod.style === 'intern'){
+      (mod.items || []).forEach(it=>{
+        const seg = [];
+        if(it.company) seg.push('<strong class="r-strong">' + esc(it.company) + '</strong>');
+        if(it.role) seg.push(esc(it.role));
+        if(it.time) seg.push('<code class="r-code">' + esc(it.time) + '</code>');
+        out.push('<p class="r-p">' + seg.join(' ｜ ') + '</p>');
+        const u = ulOf(it.bullets); if(u) out.push(u);
+      });
+    } else if(mod.style === 'list'){
+      const on = (mod.items || []).filter(it=> it.visible !== false);
+      if(on.length){
+        out.push('<ul class="r-ul">' + on.map(it=>
+          '<li>' + (it.label ? '<strong class="r-strong">' + esc(it.label) + '</strong>：' : '')
+          + richText(it.text || '') + '</li>'
+        ).join('') + '</ul>');
+      }
+    } else {
+      (mod.items || []).forEach(it=>{
+        out.push('<p class="r-p">' + richText(it.text || '') + '</p>');
+      });
+    }
+  });
+
+  const shortTitle = String(m.jobTitle || '').split(/[｜|]/)[0].trim();
+  const docTitle = [m.name, shortTitle].filter(Boolean).join(' - ');
+
+  return '<!doctype html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+    + '<title>' + esc(docTitle || '简历') + '</title>\n'
+    + '<style>\n' + EXPORT_CSS + '\n</style>\n</head>\n<body>\n'
+    + '<main class="resume" style="' + vars + '">\n' + out.join('\n') + '\n</main>\n</body>\n</html>\n';
+}
+
+function exportHtml(){
+  const src = exportHtmlSource();
+  const m = state.meta;
+  const pos = String(m.jobTitle || '').split(/[｜|]/)[0].trim();
+  const blob = new Blob([src], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = [m.name || '简历', pos, '简历'].filter(Boolean).join('-') + '.html';
+  a.click();
+  setTimeout(()=> URL.revokeObjectURL(a.href), 3000);
+  toast('已导出 HTML（能直接打开，也能再导入本工具继续改）');
+}
+
 /* 主路径：系统打印 → 矢量 PDF（文字可选中、放大不糊） */
 function exportPdf(){
   toast('打印窗口已打开：目标选「另存为 PDF」，纸张 A4，边距选「无」');
@@ -1852,6 +1992,8 @@ document.getElementById('btnExportJson').onclick = ()=>{
   if(state.ai && state.ai.key) toast('已导出（不含 API Key）');
 };
 
+document.getElementById('btnExportHtml').onclick = exportHtml;
+
 document.getElementById('btnImport').onclick = ()=> document.getElementById('fileImport').click();
 document.getElementById('fileImport').addEventListener('change', e=>{
   const f = e.target.files[0];
@@ -1917,10 +2059,16 @@ function parseResumeHtml(text){
   const h1 = doc.querySelector('h1');
   if(!h1) throw new Error('没有找到姓名（<h1>）');
 
+  /* 按文档顺序取出所有语义节点：简历外面套 main / div 都能读到，不依赖 body 的直接子元素 */
+  const nodes = doc.body ? Array.from(doc.body.querySelectorAll('h1,h2,h3,p,ul,ol')) : [];
+
   const meta = { name: txt(h1), jobTitle: '', contact: '', summary: '' };
   const headPs = [];
-  for(let n = h1.nextElementSibling; n && n.tagName.toUpperCase() !== 'H2'; n = n.nextElementSibling){
-    if(n.tagName.toUpperCase() === 'P') headPs.push(n);
+  const h1At = nodes.indexOf(h1);
+  for(let i = (h1At < 0 ? 0 : h1At + 1); i < nodes.length; i++){
+    const tag = nodes[i].tagName.toUpperCase();
+    if(tag === 'H2') break;
+    if(tag === 'P') headPs.push(nodes[i]);
   }
   headPs.forEach(p=>{
     const t = txt(p);
@@ -2010,17 +2158,18 @@ function parseResumeHtml(text){
     }
   };
 
-  for(let node = doc.body.firstElementChild; node; node = node.nextElementSibling){
+  nodes.forEach(node=>{
     const tag = node.tagName.toUpperCase();
+    if(tag === 'H1') return;
     if(tag === 'H2'){
       const title = txt(node) || ('模块 ' + (seq + 1));
       const id = 'm' + (++seq);
       cur = { title, style: styleOf(title), visible: true, items: [] };
       modules[id] = cur; order.push(id);
-      continue;
+      return;
     }
     if(cur) fill(cur, node, tag);
-  }
+  });
 
   meta.contacts = splitContacts(meta.contact);
   return { meta, modules, order };
