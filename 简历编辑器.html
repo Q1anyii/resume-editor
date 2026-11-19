@@ -1,0 +1,2099 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>简历编辑器 · 拖拽排序 · 实时预览 · 导出 PDF</title>
+<style>
+/* ===== 编辑器外壳 ===== */
+*{box-sizing:border-box}
+:root{
+  --ink:#1f2937; --sub:#6b7280; --line:#e2e6ee; --bg:#f3f5f9; --card:#fff;
+  --brand:#1a4d8f; --brand-2:#2f6fbb; --danger:#c0392b;
+  --page-w:210mm; --page-h:297mm;
+}
+html,body{height:100%}
+body{margin:0;font-family:"Noto Sans CJK SC","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:13px;overflow:hidden}
+button{font-family:inherit;cursor:pointer}
+
+/* 顶栏 */
+.topbar{height:52px;display:flex;align-items:center;gap:14px;padding:0 16px;
+  background:#fff;border-bottom:1px solid var(--line);position:relative;z-index:5}
+.brand{font-weight:700;font-size:15px;letter-spacing:.5px;white-space:nowrap}
+.brand span{font-weight:400;font-size:12px;color:var(--sub);margin-left:8px;letter-spacing:0}
+.spacer{flex:1}
+.btn{height:30px;padding:0 12px;border:1px solid var(--line);background:#fff;color:var(--ink);
+  border-radius:6px;font-size:12.5px;transition:.15s}
+.btn:hover{border-color:var(--brand-2);color:var(--brand)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--brand-2);border-color:var(--brand-2);color:#fff}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--sub)}
+.btn.ghost:hover{color:var(--brand);border-color:var(--line);background:#fff}
+.btn.sm{height:24px;padding:0 8px;font-size:12px;border-radius:5px}
+.file-input{display:none}
+
+/* 主体 */
+.main{display:flex;height:calc(100% - 52px);overflow:hidden}
+
+/* 左栏 */
+.editor{width:var(--editor-w,430px);min-width:300px;max-width:860px;flex:0 0 auto;overflow-y:auto;padding:14px 14px 80px;
+  background:var(--bg)}
+.editor::-webkit-scrollbar{width:8px}
+.editor::-webkit-scrollbar-thumb{background:#cbd4e1;border-radius:4px}
+
+/* 最左侧模块跳转条 */
+.rail{flex:0 0 46px;width:46px;background:var(--card);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 0 30px;
+  overflow-y:auto;overflow-x:hidden}
+.rail::-webkit-scrollbar{width:0}
+.rail-btn{width:36px;min-height:34px;padding:5px 0;border:1px solid var(--line);border-radius:7px;
+  background:#fff;color:var(--sub);font:inherit;font-size:11px;line-height:1.25;letter-spacing:.3px;
+  cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;text-align:center}
+.rail-btn:hover{border-color:var(--brand-2);color:var(--brand)}
+.rail-btn.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.rail-tip{display:none;font-size:10px;color:var(--sub);padding:0 0 2px;text-align:center}
+
+/* 左右分隔条（拖动改宽度） */
+.splitter{flex:0 0 7px;width:7px;cursor:col-resize;background:var(--bg);position:relative;z-index:3}
+.splitter::after{content:'';position:absolute;top:0;bottom:0;left:3px;width:1px;background:var(--line);transition:.15s}
+.splitter:hover::after,.splitter.dragging::after{background:var(--brand-2);width:2px;left:2px}
+
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.panel-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);
+  background:#fbfcfe}
+.panel-title{font-weight:700;font-size:13px;color:var(--brand)}
+.panel-body{padding:12px}
+
+.field{margin-bottom:9px}
+.f-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px}
+.f-head label{margin-bottom:0!important}
+.bold-btn{flex:0 0 auto;width:22px;height:20px;line-height:1;border:1px solid var(--line);border-radius:5px;
+  background:#fff;color:var(--ink);font-weight:700;font-size:12px;cursor:pointer;font-family:Georgia,serif}
+.bold-btn:hover{border-color:var(--brand-2);color:var(--brand-2);background:#f3f7fd}
+.field label{display:block;font-size:11.5px;color:var(--sub);margin-bottom:3px;letter-spacing:.2px}
+.field input,.field textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:6px 8px;
+  font-family:inherit;font-size:12.5px;color:var(--ink);background:#fff;line-height:1.5;resize:vertical}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(47,111,187,.1)}
+.field textarea{min-height:52px;resize:none;overflow:hidden}
+.c-list{margin-bottom:6px}
+.c-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.c-row select{flex:0 0 86px;border:1px solid var(--line);border-radius:6px;padding:6px 4px;font-size:12px;
+  color:var(--ink);background:#fff;font-family:inherit}
+.c-row select:focus{outline:none;border-color:var(--brand-2)}
+.c-row input{width:auto;flex:1;min-width:0;margin:0}
+.c-row .c-label{flex:0 0 74px}
+.c-empty{font-size:11.5px;color:var(--sub);padding:2px 0 4px}
+
+/* AI 说明与主题色块共用的小字 */
+.ai-note{font-size:11px;color:var(--sub);line-height:1.6;margin-top:6px}
+
+/* 主题色块 */
+.themes{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.theme-btn{border:1px solid var(--line);border-radius:8px;background:#fff;padding:7px 4px 6px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;transition:.15s}
+.theme-btn:hover{border-color:var(--brand-2)}
+.theme-btn.on{border-color:var(--brand);box-shadow:0 0 0 2px rgba(47,111,187,.16)}
+.theme-dot{width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.theme-name{font-size:10.5px;color:var(--sub);white-space:nowrap}
+.theme-btn.on .theme-name{color:var(--brand);font-weight:600}
+
+/* 排版调节滑块 */
+.slider-row{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.slider-row label{flex:0 0 60px;font-size:11.5px;color:var(--sub);white-space:nowrap}
+.slider-row input[type=range]{flex:1;min-width:0;height:18px;accent-color:var(--brand);cursor:pointer}
+.slider-row .val{flex:0 0 48px;text-align:right;font-size:11.5px;color:var(--brand);font-weight:600}
+
+/* AI 对齐 JD */
+.ai-grid{display:grid;gap:7px;margin-bottom:9px}
+.ai-grid .f{display:flex;flex-direction:column;gap:3px}
+.ai-grid .f label{font-size:10.5px;color:var(--sub)}
+.ai-grid input,.ai-grid select{font-size:11.5px;padding:5px 7px}
+.ai-note{font-size:10.5px;color:#9aa7b8;line-height:1.5;margin:-2px 0 8px}
+.dchg{border:1px solid var(--line);border-radius:8px;padding:8px 9px;margin-bottom:8px;background:#fbfcfe}
+.dchg-head{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:5px}
+.dchg-tag{font-size:10.5px;color:var(--brand);font-weight:600}
+.dchg-reason{font-size:10.5px;color:#9aa7b8;flex:0 0 auto}
+.dchg-old{font-size:11px;color:#8b95a5;line-height:1.5}
+.dchg-new{font-size:11px;color:#14663b;line-height:1.5;background:#eff8f2;border-radius:4px;padding:4px 6px;margin-top:4px}
+.dchg-acts{display:flex;gap:6px;margin-top:7px}
+.dchg-acts .btn.sm{flex:1}
+.ai-notes{font-size:10.5px;color:#8a6d1f;background:#fffbe6;border:1px solid #f2e2a8;
+  border-radius:7px;padding:7px 9px;line-height:1.55;margin-bottom:9px}
+
+/* 模块卡 */
+.mod{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:12px;transition:.15s}
+.mod.dragging{opacity:.45}
+.mod.over{border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(47,111,187,.12)}
+.mod.off{opacity:.6}
+.mod-head{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);background:#fbfcfe}
+.handle{cursor:grab;color:#9aa7b8;font-size:15px;line-height:1;padding:2px 3px;user-select:none}
+.handle:active{cursor:grabbing}
+.mod-name{flex:1;border:1px solid transparent;background:transparent;font-weight:700;font-size:13px;
+  color:var(--brand);padding:3px 5px;border-radius:5px;font-family:inherit;min-width:0}
+.mod-name:hover{background:#f2f6fc;border-color:var(--line)}
+.mod-name:focus{outline:none;background:#fff;border-color:var(--brand-2)}
+.tools{display:flex;gap:2px}
+.ico{width:24px;height:24px;border:none;background:transparent;color:#8b96a6;border-radius:5px;font-size:13px;
+  display:inline-flex;align-items:center;justify-content:center}
+.ico:hover{background:#eef2f8;color:var(--brand)}
+.ico.del:hover{background:#fdeceb;color:var(--danger)}
+.ico.ai{color:var(--brand-2)}
+.ico.ai:hover{background:#eaf2fc;color:var(--brand)}
+.mod-body{padding:10px}
+/* 折叠：模块卡片与通用面板共用 */
+.mod.collapsed .mod-body{display:none}
+.mod.collapsed .mod-head{border-bottom:none}
+.panel.collapsed .panel-body{display:none}
+.panel.collapsed .panel-head{border-bottom:none}
+.ico.fold{color:#7d8898;font-size:12px}
+.ico.fold:hover{background:#eef2f8;color:var(--brand)}
+.mod.collapsed .mod-head{background:#f5f8fc}
+/* 条目（项目 / 经历 / 教育 / 段落）拖拽 */
+.item-head{gap:6px}
+.item-label{display:flex;align-items:center;gap:4px;min-width:0}
+.ihandle{cursor:grab;color:#9aa7b8;font-size:14px;line-height:1;padding:1px 3px;user-select:none}
+.ihandle:active{cursor:grabbing}
+.item.dragging,.bullet.dragging[data-item]{opacity:.45}
+.item.over,.bullet.over[data-item]{border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(47,111,187,.12)}
+
+.item{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:#fafbfd}
+.item-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.item-idx{font-size:11px;color:var(--sub);letter-spacing:.5px}
+.item-acts{display:flex;gap:4px}
+.bullets{margin-top:8px;border-top:1px dashed #dde3ec;padding-top:8px}
+.bullet{border:1px solid #e6ebf2;border-radius:7px;padding:8px;margin-bottom:8px;background:#fff}
+.bullet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.bullet-idx{font-size:11px;color:#8b96a6;flex:0 0 auto}
+.bh-left{display:flex;align-items:center;gap:5px;min-width:0;flex:1}
+/* 折叠时在标题行露一眼内容，免得收起后认不出是哪条 */
+.bullet-peek{font-size:11.5px;color:#9aa7b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.bullet.dragging{opacity:.45}
+.bullet.over{border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(47,111,187,.12)}
+/* bullet 折叠 / 显隐 */
+.bullet.collapsed{border-style:dashed;background:#fbfcfe}
+.bullet.collapsed .bullet-body{display:none}
+.bullet.collapsed .bullet-head{margin-bottom:0}
+.bullet.off{opacity:.55;border-style:dashed}
+.bullet.off .bullet-idx{text-decoration:line-through}
+.bullet .ico{width:22px;height:22px;font-size:12px}
+.b-acts{display:flex;align-items:center;gap:2px}
+/* 拖拽：插入位置指示线 + 拖动期禁选中 */
+.drop-line{position:fixed;left:0;height:3px;border-radius:2px;background:var(--brand-2);
+  box-shadow:0 0 0 2px rgba(47,111,187,.14);pointer-events:none;z-index:40;display:none}
+body.sorting{user-select:none;cursor:grabbing}
+body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing}
+/* 排版预设 */
+.preset-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.preset-btn{border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 3px;
+  font-size:11.5px;color:var(--sub);line-height:1.35;transition:.15s}
+.preset-btn:hover{border-color:var(--brand-2);color:var(--brand)}
+.preset-btn.on{border-color:var(--brand);color:var(--brand);font-weight:600;
+  box-shadow:0 0 0 2px rgba(47,111,187,.14);background:#f7faff}
+.preset-btn small{display:block;font-size:9.5px;color:#9aa7b8;font-weight:400;letter-spacing:0}
+/* AI 面板滚动 */
+#aiResult{max-height:340px;overflow-y:auto;padding-right:4px;margin-top:4px}
+#aiResult::-webkit-scrollbar{width:6px}
+#aiResult::-webkit-scrollbar-thumb{background:#ccd6e3;border-radius:3px}
+.ai-jd{height:96px;min-height:96px!important;max-height:96px;overflow-y:auto;resize:none}
+.add-btn{width:100%;height:30px;border:1px dashed #c7d3e3;background:#f7f9fc;color:var(--brand);
+  border-radius:7px;font-size:12.5px;font-weight:600}
+.add-btn:hover{background:#eef3fb;border-color:var(--brand-2)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+.tip{font-size:11.5px;color:var(--sub);line-height:1.7;padding:10px 12px;background:#fff;
+  border:1px dashed var(--line);border-radius:9px}
+.tip b{color:var(--brand)}
+
+/* 右栏预览 */
+.preview{flex:1;min-width:0;display:flex;flex-direction:column;background:#e9ecf2;overflow:hidden}
+.pv-bar{height:38px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 14px;
+  background:#f7f9fc;border-bottom:1px solid var(--line);font-size:12px;color:var(--sub)}
+.pv-bar .warn{color:var(--danger);font-weight:600}
+.pv-bar .ok{color:#1f7a4d}
+.zoom{display:flex;align-items:center;gap:6px}
+
+.pv-scroll{flex:1;overflow:auto;padding:22px 18px 60px;display:flex;justify-content:center;align-items:flex-start}
+.pv-scroll::-webkit-scrollbar{width:10px;height:10px}
+.pv-scroll::-webkit-scrollbar-thumb{background:#c2ccda;border-radius:5px}
+
+.page-wrap{position:relative;transform-origin:top center;flex:0 0 auto}
+.page{width:var(--page-w);min-height:var(--page-h);background:#fff;
+  padding:8mm 13mm 7.5mm 13mm;box-shadow:0 6px 26px rgba(30,50,80,.16);transform-origin:top center}
+
+/* ===== 简历渲染样式（与现有 PDF 模板一致） ===== */
+/* 字号、行距、模块距、主题色全部由 CSS 变量驱动，左侧可实时改 */
+.page{--fs:9.3pt;--lh:1.55;--gap:10pt;
+  --accent:#1a4d8f;--accent-deep:#17324d;--accent-strong:#0d3b73;--accent-bg:#eef3fa;
+  --ink-main:#1a1a1a;--ink-sub:#555;--ink-soft:#4a4a4a;
+  font-family:"Noto Sans CJK SC","Microsoft YaHei","PingFang SC",sans-serif;
+  font-size:var(--fs);line-height:var(--lh);color:var(--ink-main)}
+.r-name{font-size:calc(var(--fs) * 2.1505);margin:0 0 1.5pt 0;letter-spacing:5px;font-weight:700}
+.r-title{font-size:calc(var(--fs) * 1.0968);color:var(--accent);font-weight:600;margin:0 0 3.5pt 0;letter-spacing:1px}
+.r-contact{font-size:calc(var(--fs) * 0.9140);color:var(--ink-soft);margin:0 0 2.5pt 0}
+.r-summary{font-size:calc(var(--fs) * 0.9677);color:var(--ink-sub);margin:2pt 0 6pt 0;line-height:calc(var(--lh) * 0.968)}
+.r-h2{font-size:calc(var(--fs) * 1.2366);margin:var(--gap) 0 4.5pt 0;padding-bottom:2.5pt;
+  border-bottom:1.6pt solid var(--accent);color:var(--accent);font-weight:700;letter-spacing:1.5px}
+.r-h3{font-size:calc(var(--fs) * 1.1398);margin:calc(var(--gap) * 0.65) 0 1.5pt 0;color:var(--accent-deep);font-weight:700}
+.r-meta{font-size:calc(var(--fs) * 0.9140);color:var(--ink-sub);margin:0;line-height:calc(var(--lh) * 0.877)}
+.r-desc{font-size:calc(var(--fs) * 0.9140);font-weight:700;color:var(--accent-deep);margin:1.5pt 0 2.5pt 0;line-height:calc(var(--lh) * 0.903)}
+.r-p{font-size:calc(var(--fs) * 1);margin:0 0 2.8pt 0;line-height:var(--lh)}
+.r-ul{margin:2.8pt 0 0 0;padding-left:calc(var(--fs) * 1.344);list-style:none}
+.r-ul li{margin-bottom:3.1pt;line-height:var(--lh);text-align:left}
+.r-ul li::before{content:"\25AA";display:inline-block;width:calc(var(--fs) * 1.129);
+  margin-left:calc(var(--fs) * -1.129);color:var(--accent);font-size:calc(var(--fs) * 0.989)}
+.r-code{font-family:"Noto Sans CJK SC",monospace;font-size:calc(var(--fs) * 0.8925);background:var(--accent-bg);color:var(--accent);
+  padding:1px 4px;border-radius:2px;font-weight:600}
+.r-strong{font-weight:700;color:var(--accent-strong)}
+#page strong{font-weight:700;color:var(--accent-strong)}
+.r-a{color:var(--accent);text-decoration:none}
+
+/* 提示条 */
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:#17324d;color:#fff;font-size:12.5px;padding:9px 16px;border-radius:8px;opacity:0;
+  pointer-events:none;transition:.25s;z-index:20;box-shadow:0 8px 22px rgba(20,40,70,.28)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* 打印：只输出 A4 页面 */
+@media (max-width:1100px){
+  .main{flex-direction:column}
+  .splitter{display:none}
+  .rail{display:none}
+  .editor{width:100%;height:46%;border-bottom:1px solid var(--line)}
+  .preview{height:54%}
+}
+@media print{
+  @page{size:A4;margin:0}
+  body{overflow:visible;background:#fff}
+  .topbar,.rail,.editor,.splitter,.pv-bar,.toast{display:none!important}
+  .main{display:block;height:auto}
+  .preview{background:#fff;display:block;overflow:visible;height:auto}
+  .pv-scroll{padding:0;overflow:visible;display:block}
+  .page-wrap{transform:none!important;width:auto!important;height:auto!important}
+  .page{transform:none!important;box-shadow:none!important;margin:0}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">简历编辑器<span>拖拽排序 · 实时预览 · 导出 PDF</span></div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="btnReset">恢复默认</button>
+  <button class="btn" id="btnExportJson">导出配置</button>
+  <button class="btn" id="btnImport">导入配置</button>
+  <input type="file" id="fileImport" class="file-input" accept="application/json">
+  <button class="btn" id="btnImportHtml" title="读取已有简历 HTML，解析成可编辑的模块">导入 HTML</button>
+  <input type="file" id="fileHtml" class="file-input" accept=".html,.htm,text/html">
+  <button class="btn" id="btnImgPdf" title="生成位图 PDF，文件小但放大略糊">图像版 PDF</button>
+  <button class="btn primary" id="btnPdf" title="调用系统打印，输出矢量 PDF，文字可选中、清晰">导出 PDF</button>
+</div>
+
+<div class="main">
+
+  <!-- ===== 最左：模块跳转条 ===== -->
+  <nav class="rail" id="rail" aria-label="模块跳转"></nav>
+
+  <!-- ===== 左：编辑区 ===== -->
+  <aside class="editor" id="editor"></aside>
+
+  <!-- ===== 可拖拽分隔条 ===== -->
+  <div class="splitter" id="splitter" title="拖动调整左右宽度"></div>
+
+  <!-- ===== 右：预览区 ===== -->
+  <section class="preview">
+    <div class="pv-bar">
+      <span>A4 预览</span>
+      <span id="pageState" class="ok">单页</span>
+      <div class="spacer"></div>
+      <div class="zoom">
+        <button class="btn sm" id="zoomOut">−</button>
+        <span id="zoomVal" style="min-width:44px;text-align:center">100%</span>
+        <button class="btn sm" id="zoomIn">＋</button>
+        <button class="btn sm" id="zoomFit">适应</button>
+      </div>
+    </div>
+    <div class="pv-scroll" id="pvScroll">
+      <div class="page-wrap" id="pageWrap">
+        <div class="page" id="page"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://fastly.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://fastly.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script>
+/* =====================================================================
+   0. 联系行：拆成「类型 + 内容」的条目，预览时再拼回一行
+   ===================================================================== */
+const CONTACT_KINDS = [
+  { id: 'intent', label: '意向城市', prefix: '意向：' },
+  { id: 'phone',  label: '电话',     prefix: '' },
+  { id: 'email',  label: '邮箱',     prefix: '' },
+  { id: 'github', label: 'GitHub',   prefix: 'GitHub: ' },
+  { id: 'site',   label: '作品/主页', prefix: '作品：' },
+  { id: 'custom', label: '自定义',   prefix: '' }
+];
+const kindOf = id => CONTACT_KINDS.find(k=> k.id === id) || CONTACT_KINDS[5];
+
+/* 把一行联系信息按「｜」拆成条目，并按前缀/内容猜类型 */
+function splitContacts(str){
+  return String(str == null ? '' : str).split(/\s*｜\s*/).map(s=> s.trim()).filter(Boolean).map(seg=>{
+    let m;
+    if((m = seg.match(/^意向[：:]\s*([\s\S]*)$/))) return { kind:'intent', label:'', text: m[1].trim() };
+    if((m = seg.match(/^GitHub[：:]\s*([\s\S]*)$/i))) return { kind:'github', label:'', text: m[1].trim() };
+    if((m = seg.match(/^(?:作品|主页|博客|网站|链接)[：:]\s*([\s\S]*)$/))) return { kind:'site', label:'', text: m[1].trim() };
+    if(/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(seg)) return { kind:'email', label:'', text: seg };
+    if(/^1[3-9]\d{9}$/.test(seg)) return { kind:'phone', label:'', text: seg };
+    if(/github\.com/i.test(seg)) return { kind:'github', label:'', text: seg };
+    if(/^(?:https?:\/\/|www\.)/i.test(seg)) return { kind:'site', label:'', text: seg };
+    return { kind:'custom', label:'', text: seg };
+  });
+}
+
+/* 单条拼回文本：类型自带前缀，自定义用自己填的前缀 */
+function contactLine(c){
+  const t = String((c && c.text) || '').trim();
+  if(!t) return '';
+  const pre = c.kind === 'custom' ? String(c.label || '').trim() : kindOf(c.kind).prefix;
+  if(!pre) return t;
+  return /[：:]\s*$/.test(pre) ? pre + t : pre + '：' + t;
+}
+
+/* 条目 → meta.contact 字符串（预览、导出、AI 都用它） */
+function syncContact(meta){
+  meta = meta || state.meta;
+  meta.contact = (meta.contacts || []).map(contactLine).filter(Boolean).join(' ｜ ');
+  return meta.contact;
+}
+
+/* 补齐 meta.contacts：旧存档、导入的 JSON 只有一行字符串 */
+function normalizeMeta(meta){
+  if(!Array.isArray(meta.contacts) || !meta.contacts.length){
+    meta.contacts = splitContacts(meta.contact);
+  }
+  meta.contacts.forEach(c=>{
+    if(!CONTACT_KINDS.some(k=> k.id === c.kind)) c.kind = 'custom';
+    if(c.label == null) c.label = '';
+    if(c.text == null) c.text = '';
+  });
+  syncContact(meta);
+  return meta;
+}
+
+/* =====================================================================
+   1. 默认数据（＝当前通用结构模板，可直接改）
+   ===================================================================== */
+const DEFAULTS = () => ({
+  meta: {
+    name: '你的姓名',
+    jobTitle: '求职意向（如：后端开发工程师）',
+    contact: '意向：城市 ｜ 13800000000 ｜ you@example.com ｜ GitHub：github.com/yourname ｜ 作品：example.com',
+    summary: '一句话说清你能做什么：主攻方向 + 一个可量化成果 + 一个加分项，30–60 字，不堆名词。'
+  },
+  layout: { fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' },
+  theme: 'navy',
+  ai: {
+    baseUrl: 'https://api.deepseek.com',
+    model: 'deepseek-chat',
+    key: '',
+    jd: '',
+    scope: 'all',
+    systemPrompt: ''      /* 留空 = 用内置 AI_SYSTEM；填了就完全替换 */
+  },
+  order: ['edu', 'projects', 'intern', 'skills'],
+  modules: {
+    edu: {
+      title: '教育背景', style: 'edu', visible: true,
+      items: [{
+        text: '学校名称 ｜ 专业 ｜ 学历（全日制 · 20XX 届应届）｜ 相关证书',
+        time: '20XX.09 – 20XX.06'
+      }]
+    },
+    projects: {
+      title: '项目经历', style: 'project', visible: true,
+      items: [
+        {
+          name: '项目名称 —— 一句话定位（做的是什么、给谁用）',
+          meta: '20XX.XX – 20XX.XX ｜ 个人项目 ｜ 独立设计与实现 ｜ 源码：github.com/yourname/repo',
+          stack: '语言 · 框架 · 中间件 · 数据库 · 部署方式',
+          desc: '一句话说明项目解决什么问题、目标用户是谁。',
+          bullets: [
+            { label: '做的事（动宾短语）', text: '现象 → 问题 → 动作 → 结果，40–110 字；有数字就写数字，没有就写清边界。' },
+            { label: '关键取舍', text: '写你做的判断与原因，以及它带来的可验证变化。' }
+          ]
+        },
+        {
+          name: '第二个项目（没有就删掉这一条）',
+          meta: '20XX.XX – 20XX.XX ｜ 课程 / 竞赛项目 ｜ 负责模块',
+          stack: '技术栈',
+          desc: '',
+          bullets: [{ label: '', text: '一条说清「你做了什么、结果如何」的 bullet。' }]
+        }
+      ]
+    },
+    intern: {
+      title: '实习经历', style: 'intern', visible: true,
+      items: [{
+        company: '公司名称',
+        role: '岗位名称（实习）',
+        time: '20XX.XX – 20XX.XX',
+        bullets: [{ label: '', text: '参与了什么、负责哪块、最终交付了什么。' }]
+      }]
+    },
+    skills: {
+      title: '核心技能', style: 'list', visible: true,
+      items: [
+        { label: '主攻方向', text: '掌握 —— 只列能讲清原理的技术，别用「了解」充数。' },
+        { label: '相关技能', text: '熟悉 —— 与目标岗位相关的第二梯队能力。' },
+        { label: '工程与部署', text: '项目实践 —— Git、Docker、CI/CD、Linux 等你真用过的。' }
+      ]
+    }
+  }
+});
+
+/* =====================================================================
+   2. 状态与持久化
+   ===================================================================== */
+const STORE_KEY = 'resume-editor-v1';
+/* 主题配色：只作用于 A4 简历本体，不影响编辑器外壳 */
+const THEMES = [
+  { id:'navy',   name:'经典深蓝', accent:'#1a4d8f', deep:'#17324d', strong:'#0d3b73', bg:'#eef3fa', ink:'#1a1a1a', sub:'#555555', soft:'#4a4a4a' },
+  { id:'ink',    name:'石墨黑',   accent:'#2b2f36', deep:'#3a3f46', strong:'#14171b', bg:'#f0f1f3', ink:'#181a1d', sub:'#55575c', soft:'#44474c' },
+  { id:'forest', name:'墨绿',     accent:'#1f5c46', deep:'#194a39', strong:'#123a2c', bg:'#eaf3ee', ink:'#181d1a', sub:'#55605a', soft:'#47524c' },
+  { id:'wine',   name:'酒红',     accent:'#8c2f39', deep:'#6f2530', strong:'#5a1d26', bg:'#fbeef0', ink:'#1d1718', sub:'#5c5052', soft:'#4a4042' },
+  { id:'slate',  name:'石板蓝',   accent:'#3d566e', deep:'#2f4356', strong:'#24323f', bg:'#eff2f6', ink:'#1a1e22', sub:'#55605c', soft:'#465255' },
+  { id:'sand',   name:'暖褐',     accent:'#7a5330', deep:'#5f4024', strong:'#4a311a', bg:'#f7f0e6', ink:'#1d1a16', sub:'#5a5348', soft:'#4a453c' },
+  { id:'teal',   name:'深青',     accent:'#0f5c66', deep:'#0b474f', strong:'#08373d', bg:'#e9f3f4', ink:'#161b1c', sub:'#4f5a5b', soft:'#414b4c' },
+  { id:'plum',   name:'黛紫',     accent:'#52357a', deep:'#412a61', strong:'#33214b', bg:'#f2edf8', ink:'#1c191f', sub:'#55505c', soft:'#474250' }
+];
+const themeOf = id => THEMES.find(t=> t.id === id) || THEMES[0];
+
+/* 排版预设：只改字号 / 行距 / 模块距，不动配色；主题与排版互不影响 */
+const LAYOUT_PRESETS = [
+  { id:'standard', name:'标准', hint:'9.3pt / 1.55', layout:{ fs:9.3,  lh:1.55, gap:10 } },
+  { id:'compact',  name:'紧凑', hint:'8.8pt / 1.42', layout:{ fs:8.8,  lh:1.42, gap:7  } },
+  { id:'loose',    name:'舒展', hint:'10pt / 1.72',  layout:{ fs:10.0, lh:1.72, gap:13 } },
+  { id:'airy',     name:'疏朗', hint:'9pt / 1.85',   layout:{ fs:9.0,  lh:1.85, gap:16 } }
+];
+const presetOf = id => LAYOUT_PRESETS.find(p=> p.id === id);
+
+let state = loadState();
+let uid = Date.now();
+const nextId = () => 'm' + (++uid);
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw){
+      const s = JSON.parse(raw);
+      if(s && s.meta && s.modules && Array.isArray(s.order)){
+        // 兼容旧快照：补齐新增的排版、主题与 AI 字段
+        s.layout = Object.assign({ fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' }, s.layout || {});
+        if(!s.theme) s.theme = 'navy';
+        s.ai = Object.assign({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
+          key: '', jd: '', scope: 'all' }, s.ai || {});
+        s.meta = normalizeMeta(s.meta);
+        s.ui = Object.assign({}, s.ui || {});   /* 折叠等纯界面状态 */
+        return s;
+      }
+    }
+  }catch(e){}
+  const d = DEFAULTS();
+  d.meta = normalizeMeta(d.meta);
+  d.ui = {};
+  return d;
+}
+let saveTimer = null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+  }, 400);
+}
+
+/* =====================================================================
+   3. 工具函数
+   ===================================================================== */
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => (
+  { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]
+));
+/* 把文本里的网址转成可点击链接：缺协议的自动补 https，其余内容照原样转义 */
+function linkify(text){
+  const s = String(text == null ? '' : text);
+  const re = /(https?:\/\/[^\s｜，。）\)]+|github\.com\/[^\s｜，。）\)]+|www\.[^\s｜，。）\)]+)/gi;
+  let out = '', last = 0, m;
+  while((m = re.exec(s)) !== null){
+    out += esc(s.slice(last, m.index));
+    const url = /^https?:/i.test(m[0]) ? m[0] : 'https://' + m[0];
+    out += '<a class="r-a" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(m[0]) + '</a>';
+    last = m.index + m[0].length;
+  }
+  out += esc(s.slice(last));
+  return out;
+}
+function richText(text){
+  /* **加粗** 标记：可对任意片段自定义加粗；其余照旧识别链接 */
+  const s = String(text == null ? "" : text);
+  const parts = s.split(/\*\*(.+?)\*\*/g);
+  if(parts.length === 1) return linkify(s);
+  return parts.map((p, i)=> i % 2 ? "<strong>" + linkify(p) + "</strong>" : linkify(p)).join("");
+}
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(()=> el.classList.remove('show'), 1900);
+}
+function setPath(path, val){
+  const parts = path.split('.');
+  let obj = state;
+  for(let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
+  obj[parts[parts.length - 1]] = val;
+}
+const mkBullet = () => ({ label: '', text: '' });
+/* 折叠状态：state.ui['f:'+key] === 1 表示收起。模块用 'm-<id>'，固定面板用 'p-<name>' */
+const isFold = key => !!(state.ui && state.ui['f:' + key]);
+function toggleFold(key){
+  state.ui = state.ui || {};
+  const k = 'f:' + key;
+  if(state.ui[k]) delete state.ui[k]; else state.ui[k] = 1;
+  renderEditor(); save();
+}
+const foldBtn = (key, label) =>
+  `<button class="ico fold" data-fold="${key}" title="${label || '折叠'} / 展开">${isFold(key) ? '▸' : '▾'}</button>`;
+
+/* =====================================================================
+   4. 左侧编辑器渲染
+   ===================================================================== */
+const editorEl = document.getElementById('editor');
+let aiCfgOpen = true;
+let aiResult = null;
+
+function renderEditor(){
+  const keepTop = editorEl.scrollTop;      /* 重绘会重置滚动，先记下来再还原 */
+  const wrap = [];
+  const L = state.layout || { fs: 9.3, lh: 1.55, gap: 10 };
+
+  /* --- 个人信息 --- */
+  wrap.push(`
+    <div class="panel ${isFold('p-meta') ? 'collapsed' : ''}" id="card-meta" data-panel="p-meta">
+      <div class="panel-head"><span class="panel-title">个人信息</span><div class="spacer"></div>${foldBtn('p-meta')}</div>
+      <div class="panel-body">
+        ${field('meta.name', '姓名', state.meta.name)}
+        ${field('meta.jobTitle', '求职意向（行尾可带到岗说明）', state.meta.jobTitle)}
+        ${contactRows()}
+        ${area('meta.summary', '个人摘要', state.meta.summary, 74)}
+      </div>
+    </div>
+  `);
+
+  /* --- 排版调节 --- */
+  wrap.push(`
+    <div class="panel ${isFold('p-layout') ? 'collapsed' : ''}" data-panel="p-layout">
+      <div class="panel-head">
+        <span class="panel-title">排版调节</span>
+        <div class="spacer"></div>
+        <button class="btn sm" id="btnLayoutReset">恢复默认</button>
+        ${foldBtn('p-layout')}
+      </div>
+      <div class="panel-body">
+        <div class="preset-row">
+          ${LAYOUT_PRESETS.map(p=> `<button class="preset-btn ${L.preset === p.id ? 'on' : ''}" data-preset="${p.id}" title="套用这套排版（只改字号 / 行距 / 模块距）">${p.name}<small>${p.hint}</small></button>`).join('')}
+        </div>
+        <div class="slider-row">
+          <label>正文字号</label>
+          <input type="range" min="8.2" max="11" step="0.1" data-path="layout.fs" value="${L.fs}">
+          <span class="val" id="valFs">${L.fs.toFixed(1)}pt</span>
+        </div>
+        <div class="slider-row">
+          <label>行距</label>
+          <input type="range" min="1.3" max="1.95" step="0.05" data-path="layout.lh" value="${L.lh}">
+          <span class="val" id="valLh">${L.lh.toFixed(2)}</span>
+        </div>
+        <div class="slider-row">
+          <label>模块间距</label>
+          <input type="range" min="4" max="20" step="0.5" data-path="layout.gap" value="${L.gap}">
+          <span class="val" id="valGap">${L.gap.toFixed(1)}pt</span>
+        </div>
+        <div class="slider-row">
+          <label>左栏宽度</label>
+          <input type="range" min="320" max="760" step="10" data-path="layout.editorW" value="${L.editorW}">
+          <span class="val" id="valW">${L.editorW}px</span>
+        </div>
+      </div>
+    </div>
+  `);
+
+  /* --- 主题配色 --- */
+  const cur = themeOf(state.theme).id;
+  wrap.push(`
+    <div class="panel ${isFold('p-theme') ? 'collapsed' : ''}" data-panel="p-theme">
+      <div class="panel-head"><span class="panel-title">主题配色</span><div class="spacer"></div>${foldBtn('p-theme')}</div>
+      <div class="panel-body">
+        <div class="themes">
+          ${THEMES.map(t=> `
+            <button class="theme-btn ${t.id === cur ? 'on' : ''}" data-theme="${t.id}" title="${t.name}">
+              <span class="theme-dot" style="background:${t.accent}"></span>
+              <span class="theme-name">${t.name}</span>
+            </button>`).join('')}
+        </div>
+        <div class="ai-note">只换简历本体的强调色与线条色，正文字体、字号、排版不变。</div>
+      </div>
+    </div>
+  `);
+
+  /* --- AI 对齐 JD --- */
+  const A = state.ai;
+  const scopeOpts = [['all','整份简历（推荐）']].concat(
+    state.order.filter(id=> state.modules[id]).map(id=>[id, state.modules[id].title])
+  );
+  wrap.push(`
+    <div class="panel ${isFold('p-ai') ? 'collapsed' : ''}" id="panelAi" data-panel="p-ai">
+      <div class="panel-head">
+        <span class="panel-title">AI 对齐 JD</span>
+        <div class="spacer"></div>
+        <button class="btn sm" id="btnAiCfg">${aiCfgOpen ? '收起设置' : 'API 设置'}</button>
+        ${foldBtn('p-ai')}
+      </div>
+      <div class="panel-body">
+        <div class="ai-grid" id="aiCfg" ${aiCfgOpen ? '' : 'style="display:none"'}>
+          <div class="f"><label>Base URL（OpenAI 兼容端点）</label>
+            <input data-path="ai.baseUrl" value="${esc(A.baseUrl)}"></div>
+          <div class="f"><label>模型</label>
+            <input data-path="ai.model" value="${esc(A.model)}"></div>
+          <div class="f"><label>API Key（只存这台电脑，导出配置不带）</label>
+            <input type="password" data-path="ai.key" value="${esc(A.key)}" placeholder="sk-…" autocomplete="off"></div>
+        </div>
+        <div class="ai-grid">
+          <div class="f"><label>目标 JD（把岗位描述整段粘进来）</label>
+            <textarea class="ai-jd" data-path="ai.jd" placeholder="粘贴 JD 全文…">${esc(A.jd)}</textarea></div>
+          <div class="f"><label>改写范围</label>
+            <select data-path="ai.scope">
+              ${scopeOpts.map(o=>`<option value="${o[0]}" ${A.scope===o[0]?'selected':''}>${esc(o[1])}</option>`).join('')}
+            </select></div>
+        </div>
+        <button class="btn primary" id="btnAiRun" style="width:100%">生成修改建议</button>
+        <div class="ai-note">只调措辞与侧重，不造事实：数字、项目、时间、技术栈都不会被新增或放大。建议采用前逐条看一遍。</div>
+        <div id="aiResult"></div>
+      </div>
+    </div>
+  `);
+
+  /* --- 模块列表 --- */
+  state.order.forEach((id, i)=>{
+    const m = state.modules[id];
+    if(!m) return;
+    wrap.push(`
+      <div class="mod ${m.visible ? '' : 'off'} ${isFold('m-' + id) ? 'collapsed' : ''}" data-mod="${id}" id="card-${id}">
+        <div class="mod-head">
+          <span class="handle" title="拖动排序">⠿</span>
+          <input class="mod-name" data-path="modules.${id}.title" value="${esc(m.title)}">
+          <div class="tools">
+            <button class="ico fold" data-act="fold" title="折叠 / 展开这个模块">${isFold('m-' + id) ? '▸' : '▾'}</button>
+            <button class="ico ai" data-act="aiScope" title="用 AI 把这个模块对齐 JD">✦</button>
+            <button class="ico" data-act="up" title="上移">↑</button>
+            <button class="ico" data-act="down" title="下移">↓</button>
+            <button class="ico" data-act="toggle" title="${m.visible ? '隐藏' : '显示'}">${m.visible ? '◉' : '○'}</button>
+            <button class="ico del" data-act="delModule" title="删除模块">✕</button>
+          </div>
+        </div>
+        <div class="mod-body">${renderItems(id, m)}</div>
+      </div>
+    `);
+  });
+
+  wrap.push(`
+    <div class="panel ${isFold('p-add') ? 'collapsed' : ''}" data-panel="p-add">
+      <div class="panel-head"><span class="panel-title">新增模块</span><div class="spacer"></div>${foldBtn('p-add')}</div>
+      <div class="panel-body">
+        <div class="row2" style="grid-template-columns:1fr 1fr">
+          <button class="add-btn" data-add="project">＋ 项目型</button>
+          <button class="add-btn" data-add="list">＋ 列表型（技能）</button>
+          <button class="add-btn" data-add="edu">＋ 教育型</button>
+          <button class="add-btn" data-add="intern">＋ 经历型</button>
+          <button class="add-btn" data-add="para" style="grid-column:1/-1">＋ 纯段落型</button>
+        </div>
+      </div>
+    </div>
+    <div class="tip">
+      拖 <b>⠿</b> 可调整模块顺序，拖动时会出现一条蓝色插入线告诉你落点；<b>◉</b> 切换模块显隐；<b>✕</b> 删模块；<b>✦</b> 让 AI 只对齐这一个模块；<b>▾ / ▸</b> 折叠编辑区。<br>
+      模块里的每条（项目 / 经历 / 教育 / 技能条目 / 段落）左侧都有 <b>⠿</b>；bullet 的 <b>⠿</b> 只在本条内调序。每根 bullet 右侧三个按钮：<b>◉</b> 在简历里隐藏 / 显示（隐藏的不进预览与 PDF）、<b>▾</b> 折叠这条、<b>✕</b> 删除。折叠后会留一行小字提醒这条写了什么。<br>
+      <b>排版</b>：4 套预设（标准 / 紧凑 / 舒展 / 疏朗）只改字号、行距、模块距，与下面的主题配色互相独立，可任意组合；也能继续用滑块微调，微调后预设标记为「自定义」。<br>
+      内容会自动存到本机浏览器，关掉再打开还在。<br>
+      <b>自定义加粗</b>：任何多行内容里选中一段字，点右侧 <b>B</b> 按钮即加粗；也可以手写 <b>**文字**</b>。预览、PDF 导出、截图都按加粗显示。<br>
+      <b>AI 对齐 JD</b>：填 Base URL / 模型 / Key，粘贴 JD，点「生成修改建议」，逐条采用即可。建议列表在框内滚动，不会把面板撑长。Key 只存在这台电脑，请求直连你填的端点，不经中转；<b>导出配置不含 Key</b>。<br>
+      <b>导出 PDF</b>：点右上角按钮 → 打印窗口里「目标」选 <b>另存为 PDF</b>、纸张 A4、边距「无」，得到矢量 PDF（文字可选中）。<br>
+      右侧顶部若显示 <b>「超出 1 页」</b>，说明撑破了 A4，需精简几条 bullet 或换「紧凑」预设。
+    </div>
+  `);
+
+  editorEl.innerHTML = wrap.join('');
+  editorEl.scrollTop = keepTop;
+  bindSortables();
+  autoGrowAll();
+  renderAiResult();
+  renderRail();
+}
+
+/* 最左模块跳转条：列出个人信息 + 每个可见模块，点击滚到对应卡片 */
+function renderRail(){
+  const railEl = document.getElementById('rail');
+  if(!railEl) return;
+  const parts = [`<button class="rail-btn" data-jump="meta" title="个人信息">个人</button>`];
+  state.order.forEach(id=>{
+    const m = state.modules[id];
+    if(!m || !m.visible) return;
+    const short = (m.title || '模块').trim().slice(0, 2);
+    parts.push(`<button class="rail-btn" data-jump="${id}" title="${esc(m.title)}">${esc(short)}</button>`);
+  });
+  railEl.innerHTML = parts.join('');
+  syncRailActive();
+}
+
+/* 滚动时高亮当前所在模块 */
+function syncRailActive(){
+  const railEl = document.getElementById('rail');
+  if(!railEl) return;
+  const ids = ['meta'].concat(state.order.filter(id=> state.modules[id] && state.modules[id].visible));
+  let active = ids[0];
+  ids.forEach(id=>{
+    const el = document.getElementById('card-' + id);
+    if(el && el.getBoundingClientRect().top <= 76) active = id;
+  });
+  railEl.querySelectorAll('.rail-btn').forEach(b=>{
+    b.classList.toggle('on', b.dataset.jump === active);
+  });
+}
+
+(()=>{
+  const railEl = document.getElementById('rail');
+  if(!railEl) return;
+  railEl.addEventListener('click', e=>{
+    const b = e.target.closest('[data-jump]');
+    if(!b) return;
+    const card = document.getElementById('card-' + b.dataset.jump);
+    if(!card) return;
+    card.scrollIntoView({ behavior:'smooth', block:'start' });
+    railEl.querySelectorAll('.rail-btn').forEach(x=> x.classList.toggle('on', x === b));
+  });
+  let ticking = false;
+  editorEl.addEventListener('scroll', ()=>{
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(()=>{ ticking = false; syncRailActive(); });
+  });
+})();
+
+/* 多行输入框随内容自动增高，避免文字被截断 */
+function autoGrowAll(){
+  editorEl.querySelectorAll('textarea').forEach(ta=>{
+    if(ta.classList.contains('ai-jd')) return;   /* JD 框固定高度、内部滚动，不跟着长高 */
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(ta.scrollHeight + 2, 46) + 'px';
+  });
+}
+
+function field(path, label, value){
+  return `<div class="field"><label>${label}</label>
+    <input data-path="${path}" value="${esc(value)}"></div>`;
+}
+function area(path, label, value, h){
+  return `<div class="field"><div class="f-head"><label>${label}</label>
+    <button class="bold-btn" type="button" data-bold="${path}" title="选中文字后点这里加粗（写成 **文字**）">B</button></div>
+    <textarea data-path="${path}" style="min-height:${h}px">${esc(value)}</textarea></div>`;
+}
+
+/* 联系行：一行一个条目，类型用下拉选（含「自定义」），内容单独输入 */
+function contactRows(){
+  const cs = state.meta.contacts || [];
+  const ph = k => k === 'phone' ? '手机号' : k === 'email' ? '邮箱地址'
+    : k === 'intent' ? '城市，如 城市/全国' : k === 'github' ? 'github.com/yourname' : '内容';
+  const rows = cs.map((c, i)=>{
+    const opts = CONTACT_KINDS.map(k=>
+      `<option value="${k.id}"${k.id === c.kind ? ' selected' : ''}>${esc(k.label)}</option>`).join('');
+    return `
+      <div class="c-row">
+        <select data-cidx="${i}">${opts}</select>
+        ${c.kind === 'custom'
+          ? `<input class="c-label" data-path="meta.contacts.${i}.label" value="${esc(c.label)}" placeholder="前缀">`
+          : ''}
+        <input data-path="meta.contacts.${i}.text" value="${esc(c.text)}" placeholder="${ph(c.kind)}">
+        <button class="ico del" data-cact="del" data-cidx="${i}" title="删除这一项">✕</button>
+      </div>`;
+  }).join('');
+  return `
+    <div class="field">
+      <label>联系行（预览里用「｜」连接；网址自动补 https 并生成链接）</label>
+      <div class="c-list">${rows || '<div class="c-empty">还没有联系项</div>'}</div>
+      <button class="btn sm" data-cact="add">＋ 添加一项</button>
+    </div>`;
+}
+
+function renderItems(id, m){
+  let html = '';
+  m.items.forEach((it, i)=>{
+    if(m.style === 'edu'){
+      html += `<div class="item" data-item="${i}">
+        <div class="item-head"><span class="item-label"><span class="handle ihandle" title="拖动调整这一条的顺序">⠿</span><span class="item-idx">教育 ${i+1}</span></span>
+          <div class="item-acts"><button class="ico del" data-act="delItem" data-i="${i}">✕</button></div></div>
+        ${field(`modules.${id}.items.${i}.text`, '内容（学校｜专业｜学历｜证书）', it.text)}
+        ${field(`modules.${id}.items.${i}.time`, '时间', it.time)}
+      </div>`;
+    } else if(m.style === 'project'){
+      html += `<div class="item" data-item="${i}">
+        <div class="item-head"><span class="item-label"><span class="handle ihandle" title="拖动调整项目顺序">⠿</span><span class="item-idx">项目 ${i+1}</span></span>
+          <div class="item-acts"><button class="ico del" data-act="delItem" data-i="${i}">✕</button></div></div>
+        ${field(`modules.${id}.items.${i}.name`, '项目名称', it.name)}
+        ${field(`modules.${id}.items.${i}.meta`, '项目信息行（时间｜性质｜源码｜演示）', it.meta)}
+        ${field(`modules.${id}.items.${i}.stack`, '技术栈', it.stack)}
+        ${area(`modules.${id}.items.${i}.desc`, '一句话描述（加粗小字）', it.desc, 46)}
+        <div class="bullets">
+          ${(it.bullets || []).map((b, bi)=>{
+            const bk = `b:${id}:${i}:${bi}`;
+            const off = b.visible === false;
+            return `<div class="bullet${isFold(bk) ? ' collapsed' : ''}${off ? ' off' : ''}" data-i="${i}" data-bi="${bi}">
+              <div class="bullet-head"><span class="bh-left"><span class="handle bhandle" title="拖动调整 bullet 顺序">⠿</span><span class="bullet-idx">bullet ${bi+1}${off ? ' · 已隐藏' : ''}</span>${isFold(bk) && (b.label || b.text) ? `<span class="bullet-peek">${esc((b.label || b.text).slice(0, 20))}${(b.label || b.text).length > 20 ? '…' : ''}</span>` : ''}</span>
+                <span class="b-acts">
+                  <button class="ico" data-act="toggleBullet" data-i="${i}" data-b="${bi}" title="${off ? '在简历中显示' : '在简历中隐藏'}">${off ? '○' : '◉'}</button>
+                  ${foldBtn(bk, '折叠这条 bullet')}
+                  <button class="ico del" data-act="delBullet" data-i="${i}" data-b="${bi}" title="删除这条">✕</button>
+                </span></div>
+              <div class="bullet-body">
+                ${field(`modules.${id}.items.${i}.bullets.${bi}.label`, '加粗小标题', b.label)}
+                ${area(`modules.${id}.items.${i}.bullets.${bi}.text`, '内容', b.text, 58)}
+              </div>
+            </div>`;}).join('')}
+          <button class="add-btn" data-act="addBullet" data-i="${i}">＋ 添加 bullet</button>
+        </div>
+      </div>`;
+    } else if(m.style === 'intern'){
+      html += `<div class="item" data-item="${i}">
+        <div class="item-head"><span class="item-label"><span class="handle ihandle" title="拖动调整经历顺序">⠿</span><span class="item-idx">经历 ${i+1}</span></span>
+          <div class="item-acts"><button class="ico del" data-act="delItem" data-i="${i}">✕</button></div></div>
+        ${field(`modules.${id}.items.${i}.company`, '公司 / 单位', it.company)}
+        ${field(`modules.${id}.items.${i}.role`, '岗位', it.role)}
+        ${field(`modules.${id}.items.${i}.time`, '时间', it.time)}
+        <div class="bullets">
+          ${(it.bullets || []).map((b, bi)=>{
+            const bk = `b:${id}:${i}:${bi}`;
+            const off = b.visible === false;
+            return `<div class="bullet${isFold(bk) ? ' collapsed' : ''}${off ? ' off' : ''}" data-i="${i}" data-bi="${bi}">
+              <div class="bullet-head"><span class="bh-left"><span class="handle bhandle" title="拖动调整要点顺序">⠿</span><span class="bullet-idx">bullet ${bi+1}${off ? ' · 已隐藏' : ''}</span>${isFold(bk) && (b.label || b.text) ? `<span class="bullet-peek">${esc((b.label || b.text).slice(0, 20))}${(b.label || b.text).length > 20 ? '…' : ''}</span>` : ''}</span>
+                <span class="b-acts">
+                  <button class="ico" data-act="toggleBullet" data-i="${i}" data-b="${bi}" title="${off ? '在简历中显示' : '在简历中隐藏'}">${off ? '○' : '◉'}</button>
+                  ${foldBtn(bk, '折叠这条 bullet')}
+                  <button class="ico del" data-act="delBullet" data-i="${i}" data-b="${bi}" title="删除这条">✕</button>
+                </span></div>
+              <div class="bullet-body">
+                ${field(`modules.${id}.items.${i}.bullets.${bi}.label`, '加粗小标题（可留空）', b.label)}
+                ${area(`modules.${id}.items.${i}.bullets.${bi}.text`, '内容', b.text, 58)}
+              </div>
+            </div>`;}).join('')}
+          <button class="add-btn" data-act="addBullet" data-i="${i}">＋ 添加 bullet</button>
+        </div>
+      </div>`;
+    } else if(m.style === 'list'){
+      html += `<div class="bullet" data-item="${i}">
+        <div class="bullet-head"><span class="bh-left"><span class="handle ihandle" title="拖动调整条目顺序">⠿</span><span class="bullet-idx">条目 ${i+1}</span></span>
+          <div class="item-acts"><button class="ico del" data-act="delItem" data-i="${i}">✕</button></div></div>
+        ${field(`modules.${id}.items.${i}.label`, '加粗前缀', it.label)}
+        ${area(`modules.${id}.items.${i}.text`, '内容', it.text, 50)}
+      </div>`;
+    } else {
+      html += `<div class="item" data-item="${i}">
+        <div class="item-head"><span class="item-label"><span class="handle ihandle" title="拖动调整段落顺序">⠿</span><span class="item-idx">段落 ${i+1}</span></span>
+          <div class="item-acts"><button class="ico del" data-act="delItem" data-i="${i}">✕</button></div></div>
+        ${area(`modules.${id}.items.${i}.text`, '段落内容', it.text, 58)}
+      </div>`;
+    }
+  });
+
+  const labels = { edu:'教育背景', project:'项目', intern:'经历', list:'条目', para:'段落' };
+  html += `<button class="add-btn" data-act="addItem">＋ 添加${labels[m.style] || '条目'}</button>`;
+  return html;
+}
+
+/* =====================================================================
+   4.5 AI 对齐 JD（第三方 OpenAI 兼容接口，默认 DeepSeek）
+   ===================================================================== */
+const AI_SYSTEM = [
+  '你是通用的中文技术简历改写助手：把候选人的简历文本对齐到目标 JD 的措辞与侧重，只改表达，绝不改事实。',
+  '',
+  '【不可违反】',
+  '1. 不得新增原简历不存在的项目、公司、技术、指标、数字、时间、职级。原文里的数字只能原样保留或整条删掉，禁止换算、放大、改写小数、补造量级。',
+  '2. 不得把「熟悉 / 了解 / 参与」升级成「精通 / 主导 / 负责全量」。不得虚构团队规模、上线用户量、业务收益、部署与开源状态。',
+  '3. 部署与实现范围一律照原文写：原文没提的不补；多个项目不得合并成「均已部署」；原文写的是流程编排，就不得改写成任务规划、任务分解、多步规划这类更强的能力。',
+  '4. 个人摘要必须写成推销句（「我能独立把 X 做到 Y」），不能是技术名词清单；不以届别、学历、专业开头；数字最多 2–3 个；不超过 110 个汉字。',
+  '5. 每条 bullet 保持原量级（中文 40–110 字），结构是一个具体动作 + 一个可验证结果；不要堆形容词，不要写成三段式长段落。',
+  '6. 只用 JD 原文出现过的能力词来对齐措辞。JD 有、简历没有的能力不许塞进简历，改在 notes 里提示面试需要准备什么。',
+  '7. 技术栈字段只能在已有条目之间重排顺序，不得加入新框架。',
+  '8. 输出要完整可解析：整份简历最多输出 12 条 changes，优先个人摘要，其次是 JD 最看重的项目 bullet 与技能行；其余不足放进 notes。任何一条 newText 不超过 110 个汉字。',
+  '',
+  '【输出】只输出一个 JSON 对象，不要 markdown 代码块，不要任何解释文字：',
+  '{"changes":[{"path":"原样复制输入的 path","newText":"改写后的完整文本","reason":"不超过20字"}],"notes":["不超过30字的提示"]}',
+  '没有把握的字段不要放进 changes；changes 可以是空数组。'
+].join('
+');
+
+/* 采集可改写字段：只取措辞类文本；姓名、联系行、时间、项目名、公司角色等事实字段一律锁定 */
+function collectFields(scope){
+  const out = [];
+  const add = (path, text, label) => {
+    if(typeof text !== 'string' || !text.trim()) return;
+    out.push({ path, text, label });
+  };
+  const include = id => scope === 'all' || scope === id;
+
+  if(scope === 'all') add('meta.summary', state.meta.summary, '个人摘要');
+
+  state.order.forEach(id=>{
+    const m = state.modules[id];
+    if(!m || !include(id)) return;
+    (m.items || []).forEach((it, i)=>{
+      const base = 'modules.' + id + '.items.' + i;
+      const tag = m.title + ' · 第' + (i + 1) + '条';
+      if(m.style === 'edu'){
+        add(base + '.text', it.text, tag + ' · 学校专业行');
+      } else if(m.style === 'project'){
+        add(base + '.desc', it.desc, tag + ' · 一句话描述');
+        add(base + '.stack', it.stack, tag + ' · 技术栈（只可重排不可新增）');
+        (it.bullets || []).forEach((b, bi)=>{
+          add(base + '.bullets.' + bi + '.label', b.label, tag + ' · bullet' + (bi + 1) + ' 小标题');
+          add(base + '.bullets.' + bi + '.text', b.text, tag + ' · bullet' + (bi + 1) + ' 正文');
+        });
+      } else if(m.style === 'intern'){
+        (it.bullets || []).forEach((b, bi)=>{
+          add(base + '.bullets.' + bi + '.label', b.label, tag + ' · 要点' + (bi + 1) + ' 小标题');
+          add(base + '.bullets.' + bi + '.text', b.text, tag + ' · 要点' + (bi + 1) + ' 正文');
+        });
+      } else if(m.style === 'list'){
+        add(base + '.text', it.text, tag + ' · 「' + (it.label || '未命名') + '」正文');
+      } else {
+        add(base + '.text', it.text, tag + ' · 段落');
+      }
+    });
+  });
+  return out;
+}
+
+function parseAiJson(text){
+  let t = String(text || '').trim();
+  t = t.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
+  const i = t.indexOf('{'), j = t.lastIndexOf('}');
+  if(i < 0 || j <= i) throw new Error('返回内容不是 JSON');
+  return JSON.parse(t.slice(i, j + 1));
+}
+
+/* 兜底拦截：即使模型违规，也不让它写进口径红线与"全部部署"这类说法 */
+const AI_BLOCKLIST = [
+  /plan[\s-]*and[\s-]*execute/i,
+  /任务规划/, /任务分解/, /多步规划/, /规划任务/,
+  /两个项目.{0,6}(均|都).{0,8}部署/,
+  /(均已|都已).{0,6}公网部署/
+];
+
+function sanitizeChanges(raw, fields){
+  const map = new Map(fields.map(f=>[f.path, f]));
+  const seen = new Set();
+  const out = [];
+  (raw || []).forEach(c=>{
+    if(!c || typeof c.path !== 'string') return;
+    const f = map.get(c.path);
+    if(!f) return;                                       // path 不在清单里 → 丢弃
+    if(seen.has(c.path)) return;                         // 同一字段只取第一条
+    const nv = typeof c.newText === 'string' ? c.newText.trim() : '';
+    if(!nv || nv === f.text) return;                     // 空或没变
+    if(nv.length > 260) return;                          // 防止写成大段落
+    if(AI_BLOCKLIST.some(re=> re.test(nv))) return;      // 口径红线兜底
+    seen.add(c.path);
+    out.push({ path: c.path, label: f.label, oldText: f.text, newText: nv,
+      reason: String(c.reason || '').slice(0, 24) });
+  });
+  return out;
+}
+
+async function runAi(scope){
+  const cfg = state.ai;
+  if(!cfg.key || !cfg.key.trim()){ toast('先填 API Key（点右上角「API 设置」）'); aiCfgOpen = true; renderEditor(); return; }
+  if(!cfg.jd || !cfg.jd.trim()){ toast('先把 JD 粘进来'); return; }
+
+  const fields = collectFields(scope);
+  if(!fields.length){ toast('这个范围没有可改写的内容'); return; }
+
+  const scopeName = scope === 'all' ? '整份简历'
+    : ((state.modules[scope] && state.modules[scope].title) || '该模块');
+  const userMsg = [
+    '【JD 原文】', cfg.jd.trim(), '',
+    '【本次改写范围】' + scopeName, '',
+    '【可改写字段清单】（path 必须原样复制，不得自造）',
+    fields.map((f, i)=> '[' + (i + 1) + '] ' + f.path + '\n    位置：' + f.label + '\n    原文：' + f.text).join('\n\n')
+  ].join('\n');
+
+  const base = (cfg.baseUrl || '').trim().replace(/\/+$/, '');
+  const endpoint = /\/chat\/completions$/.test(base) ? base : base + '/chat/completions';
+  const btn = document.getElementById('btnAiRun');
+  const old = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '生成中…（约 10-30 秒）'; }
+  const box = document.getElementById('aiResult');
+  if(box) box.innerHTML = '<div class="ai-note">正在请求模型，请稍候…</div>';
+
+  try{
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + cfg.key.trim()
+      },
+      body: JSON.stringify({
+        model: (cfg.model || 'deepseek-chat').trim() || 'deepseek-chat',
+        messages: [
+          { role: 'system', content: AI_SYSTEM },
+          { role: 'user', content: userMsg }
+        ],
+        temperature: 0.3,
+        max_tokens: 8192,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if(!res.ok){
+      let hint = 'HTTP ' + res.status;
+      if(res.status === 401) hint = 'API Key 无效或已过期（401）';
+      else if(res.status === 402) hint = '账户余额不足（402）';
+      else if(res.status === 429) hint = '请求太频繁，等一两分钟再试（429）';
+      else if(res.status === 404) hint = '端点不存在，检查 Base URL（404）';
+      else if(res.status >= 500) hint = '服务端异常（' + res.status + '）';
+      let detail = '';
+      try{ const e = await res.json(); detail = (e && e.error && e.error.message) || ''; }catch(_){}
+      throw new Error(hint + (detail ? '：' + detail : ''));
+    }
+
+    const data = await res.json();
+    const content = data && data.choices && data.choices[0]
+      && data.choices[0].message && data.choices[0].message.content;
+    if(!content) throw new Error('返回内容为空');
+
+    const parsed = parseAiJson(content);
+    const changes = sanitizeChanges(parsed.changes, fields);
+    const notes = (parsed.notes || []).filter(n=> typeof n === 'string' && n.trim())
+      .slice(0, 5).map(n=> n.trim().slice(0, 60));
+
+    aiResult = { changes, notes, scope };
+    renderAiResult();
+    if(changes.length) toast('生成 ' + changes.length + ' 条建议');
+    else toast('模型认为当前内容已足够贴合');
+  }catch(err){
+    const msg = (err && err.message) || '未知错误';
+    const isNet = /Failed to fetch|NetworkError|Load failed/i.test(msg);
+    const isJson = /JSON/i.test(msg);
+    const text = isNet ? '连不上接口：网络不通或被 CORS 拦截。确认 Base URL 可直连、网络正常'
+      : isJson ? '模型返回的内容不是 JSON（可能被截断）。再点一次「生成修改建议」，或把范围改成单个模块'
+      : msg;
+    aiResult = null;
+    const b2 = document.getElementById('aiResult');
+    if(b2) b2.innerHTML = '<div class="ai-notes">生成失败：' + esc(text) + '</div>';
+    toast('生成失败');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = old || '生成修改建议'; }
+  }
+}
+
+function renderAiResult(){
+  const box = document.getElementById('aiResult');
+  if(!box) return;
+  if(!aiResult){ box.innerHTML = ''; return; }
+
+  let h = '';
+  if(aiResult.notes && aiResult.notes.length){
+    h += '<div class="ai-notes"><b>面试要准备的缺口</b><br>' + aiResult.notes.map(esc).join('<br>') + '</div>';
+  }
+  if(!aiResult.changes.length){
+    h += '<div class="ai-note">没有可应用的改动。</div>';
+    box.innerHTML = h;
+    return;
+  }
+  h += '<div style="display:flex;gap:6px;margin-bottom:8px">'
+    + '<button class="btn sm primary" id="btnAiApplyAll" style="flex:1">全部采用（' + aiResult.changes.length + '）</button>'
+    + '<button class="btn sm" id="btnAiDrop" style="flex:0 0 78px">全部忽略</button></div>';
+  h += aiResult.changes.map((c, i)=> `
+    <div class="dchg">
+      <div class="dchg-head"><span class="dchg-tag">${esc(c.label)}</span>
+        <span class="dchg-reason">${esc(c.reason || '')}</span></div>
+      <div class="dchg-old">${esc(c.oldText)}</div>
+      <div class="dchg-new">${esc(c.newText)}</div>
+      <div class="dchg-acts">
+        <button class="btn sm primary" data-dchg="${i}">采用</button>
+        <button class="btn sm" data-dchg="${i}" data-skip="1">忽略</button>
+      </div>
+    </div>`).join('');
+  box.innerHTML = h;
+}
+
+/* ---------- 拖拽排序：pointer 事件 + 插入指示线 ---------- */
+/* 三处共用一套引擎：
+     module → state.order
+     item   → state.modules[mid].items
+     bullet → state.modules[mid].items[i].bullets（只在同一条目内；跨条目等于改事实）
+   旧的 HTML5 DragEvent 方案 drop 后整栏重绘，会闪、会丢滚动位置、也看不出插到哪。
+   现在手柄一按下就进入拖动，指针停在某个元素的上半 / 下半就决定「插它前面 / 后面」，
+   用一条 3px 指示线给出落点，松手才写数据。 */
+
+const dropLine = document.createElement('div');
+dropLine.className = 'drop-line';
+document.body.appendChild(dropLine);
+
+let sortState = null;          /* {type, el, mid, i, els, target, moved} */
+
+function sortEls(type, ctx){
+  if(type === 'module') return Array.from(editorEl.querySelectorAll('.mod'));
+  const modEl = editorEl.querySelector('.mod[data-mod="' + ctx.mid + '"]');
+  if(!modEl) return [];
+  if(type === 'item') return Array.from(modEl.querySelectorAll('[data-item]'));
+  const itemEl = modEl.querySelector('[data-item="' + ctx.i + '"]');
+  if(!itemEl) return [];
+  return Array.from(itemEl.querySelectorAll('.bullet[data-bi]'));
+}
+
+function sortStart(e, type, ctx, el){
+  if(e.button != null && e.button !== 0) return;
+  if(sortState) return;
+  e.preventDefault();
+  e.stopPropagation();
+  sortState = Object.assign({ type, el, els: sortEls(type, ctx), target: undefined, moved: false }, ctx);
+  el.classList.add('dragging');
+  document.body.classList.add('sorting');
+  document.addEventListener('pointermove', sortMove);
+  document.addEventListener('pointerup', sortEnd, true);
+  document.addEventListener('pointercancel', sortEnd, true);
+}
+
+function sortMove(e){
+  const s = sortState;
+  if(!s) return;
+  s.moved = true;
+  const y = e.clientY;
+  let target = null;                     /* null = 落到末尾 */
+  for(const el of s.els){
+    if(el === s.el) continue;
+    const r = el.getBoundingClientRect();
+    if(y < r.top + r.height / 2){ target = el; break; }
+  }
+  s.target = target;
+  placeLine(target, s);
+  autoScrollEditor(y);
+}
+
+function placeLine(target, s){
+  const list = s.els.filter(el => el !== s.el);
+  if(!list.length){ dropLine.style.display = 'none'; return; }
+  const anchor = target || list[list.length - 1];
+  const r = anchor.getBoundingClientRect();
+  dropLine.style.display = 'block';
+  dropLine.style.left = (r.left + 6) + 'px';
+  dropLine.style.width = Math.max(40, r.width - 12) + 'px';
+  dropLine.style.top = (target ? r.top - 2 : r.bottom - 1) + 'px';
+}
+
+/* 拖到左栏上下边缘时自动滚动，长列表也能拖到底 */
+function autoScrollEditor(y){
+  const box = editorEl.getBoundingClientRect();
+  const edge = 64;
+  if(box.height < 200) return;
+  if(y < box.top + edge) editorEl.scrollTop -= 14;
+  else if(y > box.bottom - edge) editorEl.scrollTop += 14;
+}
+
+function sortEnd(){
+  const s = sortState;
+  document.removeEventListener('pointermove', sortMove);
+  document.removeEventListener('pointerup', sortEnd, true);
+  document.removeEventListener('pointercancel', sortEnd, true);
+  dropLine.style.display = 'none';
+  document.body.classList.remove('sorting');
+  sortState = null;
+  if(!s) return;
+  s.el.classList.remove('dragging');
+  if(!s.moved || s.target === undefined) return;
+
+  const els = s.els;
+  const from = els.indexOf(s.el);
+  if(from < 0) return;
+  let to;
+  if(s.target === null){
+    to = els.length - 1;                 /* 末尾 */
+  } else {
+    const ti = els.indexOf(s.target);
+    if(ti < 0) return;
+    to = (from < ti) ? ti - 1 : ti;      /* 先抽走自己再插到 target 之前 */
+  }
+  if(from === to) return;
+  applySort(s, from, to);
+}
+
+function applySort(s, from, to){
+  let arr = null;
+  if(s.type === 'module'){
+    arr = state.order;
+  } else if(s.type === 'item'){
+    const m = state.modules[s.mid];
+    arr = m && m.items;
+  } else {
+    const m = state.modules[s.mid];
+    const it = m && m.items && m.items[s.i];
+    arr = it && it.bullets;
+  }
+  if(!arr || from >= arr.length || to >= arr.length) return;
+  const [x] = arr.splice(from, 1);
+  arr.splice(to, 0, x);
+  renderEditor(); renderPreview(); checkOverflow(); applyZoom(); renderRail(); save();
+}
+
+/* 给三种手柄接线：模块标题的 ⠿、条目左侧的 ⠿、bullet 左侧的 ⠿ */
+function bindSortables(){
+  editorEl.querySelectorAll('.mod').forEach(modEl=>{
+    const mid = modEl.dataset.mod;
+    const h = modEl.querySelector('.mod-head .handle');
+    if(h) h.addEventListener('pointerdown', e=> sortStart(e, 'module', { mid }, modEl));
+  });
+  editorEl.querySelectorAll('.ihandle').forEach(h=>{
+    const el = h.closest('[data-item]');
+    const modEl = el && el.closest('.mod');
+    if(!el || !modEl) return;
+    h.addEventListener('pointerdown', e=> sortStart(e, 'item', { mid: modEl.dataset.mod, i: +el.dataset.item }, el));
+  });
+  editorEl.querySelectorAll('.bhandle').forEach(h=>{
+    const el = h.closest('.bullet[data-bi]');
+    const modEl = el && el.closest('.mod');
+    if(!el || !modEl) return;
+    h.addEventListener('pointerdown', e=> sortStart(e, 'bullet', { mid: modEl.dataset.mod, i: +el.dataset.i }, el));
+  });
+}
+
+/* =====================================================================
+   5. 右侧预览渲染
+   ===================================================================== */
+const pageEl = document.getElementById('page');
+
+function renderPreview(){
+  const m = state.meta;
+  let html = '';
+
+  html += `<div class="r-name">${esc(m.name)}</div>`;
+  html += `<div class="r-title">求职意向：${esc(m.jobTitle)}</div>`;
+  html += `<div class="r-contact">${richText(m.contact)}</div>`;
+  html += `<div class="r-summary">${richText(m.summary)}</div>`;
+
+  state.order.forEach(id=>{
+    const mod = state.modules[id];
+    if(!mod || !mod.visible) return;
+    html += `<div class="r-h2">${esc(mod.title)}</div>`;
+
+    if(mod.style === 'edu'){
+      (mod.items || []).forEach(it=>{
+        html += `<div class="r-p">${richText(it.text)}${it.time ? ' ｜ <span class="r-code">' + esc(it.time) + '</span>' : ''}</div>`;
+      });
+    } else if(mod.style === 'project'){
+      (mod.items || []).forEach(it=>{
+        if(it.name) html += `<div class="r-h3">${esc(it.name)}</div>`;
+        if(it.meta) html += `<div class="r-meta">${richText(it.meta)}</div>`;
+        if(it.stack) html += `<div class="r-meta"><span class="r-code">${esc(it.stack)}</span></div>`;
+        if(it.desc) html += `<div class="r-desc">${esc(it.desc)}</div>`;
+        const bs = (it.bullets || []).filter(b=> b.visible !== false);   /* 隐藏的 bullet 不进正文 */
+        if(bs.length){
+          html += '<ul class="r-ul">' + bs.map(b=>{
+            const t = richText(b.text || '');
+            return '<li>' + (b.label ? '<span class="r-strong">' + esc(b.label) + '</span>：' : '') + t + '</li>';
+          }).join('') + '</ul>';
+        }
+      });
+    } else if(mod.style === 'intern'){
+      (mod.items || []).forEach(it=>{
+        html += `<div class="r-p"><span class="r-strong">${esc(it.company)}</span>`
+          + (it.role ? ' ｜ ' + esc(it.role) : '')
+          + (it.time ? ' ｜ <span class="r-code">' + esc(it.time) + '</span>' : '')
+          + '</div>';
+        const bs = (it.bullets || []).filter(b=> b.visible !== false);
+        if(bs.length){
+          html += '<ul class="r-ul">' + bs.map(b=>{
+            const t = richText(b.text || '');
+            return '<li>' + (b.label ? '<span class="r-strong">' + esc(b.label) + '</span>：' : '') + t + '</li>';
+          }).join('') + '</ul>';
+        }
+      });
+    } else if(mod.style === 'list'){
+      const items = mod.items || [];
+      if(items.length){
+        html += '<ul class="r-ul">' + items.map(it=>{
+          const t = richText(it.text || '');
+          return '<li>' + (it.label ? '<span class="r-strong">' + esc(it.label) + '</span>：' : '') + t + '</li>';
+        }).join('') + '</ul>';
+      }
+    } else {
+      (mod.items || []).forEach(it=>{
+        html += `<div class="r-p">${richText(it.text || '')}</div>`;
+      });
+    }
+  });
+
+  pageEl.innerHTML = html;
+  checkOverflow();
+}
+
+/* 把排版参数写到 CSS 变量上 */
+function applyLayout(){
+  const L = state.layout || { fs: 9.3, lh: 1.55, gap: 10, editorW: 430 };
+  pageEl.style.setProperty('--fs', L.fs + 'pt');
+  pageEl.style.setProperty('--lh', String(L.lh));
+  pageEl.style.setProperty('--gap', L.gap + 'pt');
+  setEditorWidth(L.editorW);
+  applyTheme();
+}
+
+/* 左栏宽度（分隔条拖动与滑块共用） */
+function setEditorWidth(w){
+  const v = Math.min(860, Math.max(300, Number(w) || 430));
+  document.documentElement.style.setProperty('--editor-w', v + 'px');
+}
+
+/* 主题色 = A4 页面上的 CSS 变量 */
+function applyTheme(){
+  const t = themeOf(state.theme);
+  pageEl.style.setProperty('--accent', t.accent);
+  pageEl.style.setProperty('--accent-deep', t.deep);
+  pageEl.style.setProperty('--accent-strong', t.strong);
+  pageEl.style.setProperty('--accent-bg', t.bg);
+  pageEl.style.setProperty('--ink-main', t.ink);
+  pageEl.style.setProperty('--ink-sub', t.sub);
+  pageEl.style.setProperty('--ink-soft', t.soft);
+}
+
+/* 同步滑块右侧数值 */
+function syncLabels(){
+  const L = state.layout || { fs: 9.3, lh: 1.55, gap: 10, editorW: 430 };
+  const a = document.getElementById('valFs');
+  const b = document.getElementById('valLh');
+  const c = document.getElementById('valGap');
+  const d = document.getElementById('valW');
+  if(a) a.textContent = L.fs.toFixed(1) + 'pt';
+  if(b) b.textContent = L.lh.toFixed(2);
+  if(c) c.textContent = L.gap.toFixed(1) + 'pt';
+  if(d) d.textContent = Math.round(L.editorW || 430) + 'px';
+}
+
+/* 超页检测：临时去掉 min-height，量出内容真实高度 */
+function checkOverflow(){
+  const A4_PX = 297 / 25.4 * 96;                  // ≈ 1122.5px
+  const prev = pageEl.style.minHeight;
+  pageEl.style.minHeight = '0px';
+  const h = pageEl.offsetHeight;
+  pageEl.style.minHeight = prev;
+  const el = document.getElementById('pageState');
+  if(h > A4_PX + 2){
+    const over = Math.round((h - A4_PX) / 96 * 72);
+    el.className = 'warn';
+    el.textContent = '超出 1 页约 ' + over + 'pt，请精简';
+  } else {
+    el.className = 'ok';
+    el.textContent = '单页 · 余 ' + Math.round((A4_PX - h) / 96 * 72) + 'pt';
+  }
+}
+
+/* =====================================================================
+   6. 交互：输入 / 按钮 / 增删
+   ===================================================================== */
+editorEl.addEventListener('input', e=>{
+  const t = e.target;
+  const p = t.dataset.path;
+  if(!p) return;
+
+  /* 排版滑块：只改变量与量尺，不重建预览，拖动手感才跟得上 */
+  if(t.type === 'range'){
+    setPath(p, parseFloat(t.value));
+    if(p !== 'layout.editorW'){
+      state.layout.preset = 'custom';                 /* 手动改过就不再算某个预设 */
+      editorEl.querySelectorAll('.preset-btn.on').forEach(b=> b.classList.remove('on'));
+    }
+    applyLayout(); syncLabels(); checkOverflow(); applyZoom(); save();
+    return;
+  }
+
+  const val = (t.type === 'checkbox') ? t.checked : t.value;
+  setPath(p, val);
+
+  /* AI 配置与 JD：只存盘，不触发预览重绘 */
+  if(p.indexOf('ai.') === 0){ save(); return; }
+
+  /* 联系行条目：改完单项立刻拼回 meta.contact，预览才跟着变 */
+  if(p.indexOf('meta.contacts.') === 0) syncContact();
+
+  if(t.tagName === 'TEXTAREA' && !t.classList.contains('ai-jd')){
+    t.style.height = 'auto';
+    t.style.height = Math.max(t.scrollHeight + 2, 46) + 'px';
+  }
+  renderPreview();
+  save();
+});
+
+/* 自定义加粗：选中文字 → 包成 **文字**，预览与导出都按加粗渲染 */
+editorEl.addEventListener('click', e=>{
+  const b = e.target.closest('.bold-btn');
+  if(!b) return;
+  const path = b.dataset.bold;
+  const ta = editorEl.querySelector('textarea[data-path="' + path + '"]');
+  if(!ta) return;
+  const s0 = ta.selectionStart, s1 = ta.selectionEnd;
+  if(s0 === s1){
+    ta.focus();
+    toast('先在文本框里选中要加粗的文字，再点 B');
+    return;
+  }
+  const v = ta.value, sel = v.slice(s0, s1);
+  const already = sel.length > 4 && sel.startsWith('**') && sel.endsWith('**');
+  const rep = already ? sel.slice(2, -2) : '**' + sel + '**';
+  ta.value = v.slice(0, s0) + rep + v.slice(s1);
+  ta.focus();
+  ta.selectionStart = s0;
+  ta.selectionEnd = s0 + rep.length;
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+editorEl.addEventListener('change', e=>{
+  const t = e.target;
+
+  /* 联系项类型：切换后可能要显示/收起「自定义前缀」输入框，重绘左栏 */
+  if(t.tagName === 'SELECT' && t.dataset.cidx != null){
+    const i = +t.dataset.cidx;
+    if(!state.meta.contacts || !state.meta.contacts[i]) return;
+    state.meta.contacts[i].kind = t.value;
+    syncContact(); renderEditor(); renderPreview(); checkOverflow(); applyZoom(); save();
+    return;
+  }
+
+  const p = e.target.dataset.path;
+  if(!p) return;
+  if(e.target.tagName === 'SELECT'){
+    setPath(p, e.target.value);
+    save();
+    return;
+  }
+  if(e.target.type === 'checkbox'){
+    setPath(p, e.target.checked);
+    renderPreview(); save();
+  }
+});
+
+editorEl.addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+
+  /* 折叠 / 展开：固定面板（data-fold）与模块卡片（data-act="fold"） */
+  if(btn.dataset.fold){
+    toggleFold(btn.dataset.fold);
+    return;
+  }
+
+  /* 排版恢复默认 */
+  if(btn.id === 'btnLayoutReset'){
+    state.layout = { fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' };
+    renderEditor(); applyLayout(); syncLabels(); applyZoom(); save();
+    toast('排版已恢复默认');
+    return;
+  }
+
+  /* 排版预设 */
+  if(btn.dataset.preset){
+    const p = presetOf(btn.dataset.preset);
+    if(!p) return;
+    state.layout = Object.assign({}, state.layout, p.layout, { preset: p.id });
+    renderEditor(); applyLayout(); syncLabels(); checkOverflow(); applyZoom(); save();
+    toast('已套用排版：' + p.name);
+    return;
+  }
+
+  /* 主题切换 */
+  if(btn.dataset.theme){
+    state.theme = btn.dataset.theme;
+    applyTheme();
+    renderEditor();
+    save();
+    toast('已切换主题：' + themeOf(state.theme).name);
+    return;
+  }
+
+  /* AI：收放 API 设置 */
+  if(btn.id === 'btnAiCfg'){
+    aiCfgOpen = !aiCfgOpen;
+    renderEditor();
+    return;
+  }
+
+  /* AI：生成建议 */
+  if(btn.id === 'btnAiRun'){ runAi(state.ai.scope); return; }
+
+  /* AI：全部采用 */
+  if(btn.id === 'btnAiApplyAll'){
+    const list = aiResult ? aiResult.changes.slice() : [];
+    list.forEach(c=> setPath(c.path, c.newText));
+    if(aiResult) aiResult.changes = [];
+    renderEditor(); renderPreview(); checkOverflow(); applyZoom(); save();
+    if(list.length) toast('已应用 ' + list.length + ' 处改动');
+    return;
+  }
+
+  /* AI：全部忽略 */
+  if(btn.id === 'btnAiDrop'){
+    aiResult = null;
+    renderAiResult();
+    toast('已忽略全部建议');
+    return;
+  }
+
+  /* AI：单条采用 / 忽略 */
+  if(btn.dataset.dchg != null){
+    const idx = +btn.dataset.dchg;
+    if(!aiResult || !aiResult.changes[idx]) return;
+    const c = aiResult.changes[idx];
+    if(btn.dataset.skip){
+      aiResult.changes.splice(idx, 1);
+      renderAiResult();
+      return;
+    }
+    setPath(c.path, c.newText);
+    aiResult.changes.splice(idx, 1);
+    renderEditor(); renderPreview(); checkOverflow(); applyZoom(); save();
+    toast('已采用：' + c.label);
+    return;
+  }
+
+  /* 联系行：加一条 / 删一条 */
+  if(btn.dataset.cact === 'add'){
+    state.meta.contacts = state.meta.contacts || [];
+    state.meta.contacts.push({ kind: 'custom', label: '', text: '' });
+    syncContact(); renderEditor(); renderPreview(); checkOverflow(); applyZoom(); save();
+    return;
+  }
+  if(btn.dataset.cact === 'del'){
+    const ci = +btn.dataset.cidx;
+    state.meta.contacts.splice(ci, 1);
+    syncContact(); renderEditor(); renderPreview(); checkOverflow(); applyZoom(); save();
+    return;
+  }
+
+  const modEl = btn.closest('.mod');
+  const id = modEl && modEl.dataset.mod;
+  const act = btn.dataset.act;
+  const i = btn.dataset.i != null ? +btn.dataset.i : null;
+  const b = btn.dataset.b != null ? +btn.dataset.b : null;
+
+  /* 新增模块 */
+  if(btn.dataset.add){
+    addModule(btn.dataset.add);
+    return;
+  }
+
+  if(!id || !act) return;
+  const m = state.modules[id];
+
+  /* AI：从模块卡片触发，选中该模块后可一键跑 */
+  if(act === 'aiScope'){
+    state.ai.scope = id;
+    renderEditor(); save();
+    const panel = document.getElementById('panelAi');
+    if(panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if(!state.ai.key || !state.ai.key.trim() || !state.ai.jd || !state.ai.jd.trim()){
+      toast('已选中「' + m.title + '」，先填 Key 和 JD');
+    } else {
+      runAi(id);
+    }
+    return;
+  }
+
+  if(act === 'up' || act === 'down'){
+    const idx = state.order.indexOf(id);
+    const to = act === 'up' ? idx - 1 : idx + 1;
+    if(to < 0 || to >= state.order.length) return;
+    state.order.splice(idx, 1);
+    state.order.splice(to, 0, id);
+    renderEditor(); renderPreview(); renderRail(); save();
+  }
+  else if(act === 'fold'){
+    toggleFold('m-' + id);
+    return;
+  }
+  else if(act === 'toggle'){
+    m.visible = !m.visible;
+    renderEditor(); renderPreview(); renderRail(); save();
+  }
+  else if(act === 'delModule'){
+    if(state.order.length <= 1){ toast('至少保留一个模块'); return; }
+    if(!confirm('删除模块「' + m.title + '」？内容不可恢复。')) return;
+    state.order = state.order.filter(x=> x !== id);
+    delete state.modules[id];
+    renderEditor(); renderPreview(); renderRail(); save();
+  }
+  else if(act === 'addItem'){
+    m.items.push(newItem(m.style));
+    renderEditor(); renderPreview(); save();
+  }
+  else if(act === 'delItem'){
+    m.items.splice(i, 1);
+    renderEditor(); renderPreview(); save();
+  }
+  else if(act === 'addBullet'){
+    m.items[i].bullets = m.items[i].bullets || [];
+    m.items[i].bullets.push(mkBullet());
+    renderEditor(); renderPreview(); save();
+  }
+  else if(act === 'delBullet'){
+    m.items[i].bullets.splice(b, 1);
+    renderEditor(); renderPreview(); save();
+  }
+  else if(act === 'toggleBullet'){
+    const bl = m.items[i] && m.items[i].bullets ? m.items[i].bullets[b] : null;
+    if(!bl) return;
+    bl.visible = bl.visible === false;      // 取反：false → true，其余 → false
+    renderEditor(); renderPreview(); checkOverflow(); save();
+  }
+});
+
+function newItem(style){
+  if(style === 'edu') return { text: '', time: '' };
+  if(style === 'project') return { name: '', meta: '', stack: '', desc: '', bullets: [mkBullet()] };
+  if(style === 'intern') return { company: '', role: '', time: '', bullets: [mkBullet()] };
+  if(style === 'list') return { label: '', text: '' };
+  return { text: '' };
+}
+
+function addModule(style){
+  const titles = { project:'新增项目', list:'新增技能组', edu:'新增教育', intern:'新增经历', para:'新增段落' };
+  const id = nextId();
+  state.modules[id] = { title: titles[style], style, visible: true, items: [newItem(style)] };
+  state.order.push(id);
+  renderEditor(); renderPreview(); renderRail(); save();
+  toast('已添加「' + titles[style] + '」');
+}
+
+/* =====================================================================
+   7. 缩放
+   ===================================================================== */
+let zoom = 1, fitMode = true;
+const pvScroll = document.getElementById('pvScroll');
+const pageWrap = document.getElementById('pageWrap');
+
+function applyZoom(){
+  if(fitMode){
+    const avail = pvScroll.clientWidth - 48;
+    const pageW = pageEl.offsetWidth || 794;
+    zoom = Math.min(1, Math.max(0.45, avail / pageW));
+  }
+  pageEl.style.transform = 'scale(' + zoom + ')';
+  pageWrap.style.width = (pageEl.offsetWidth * zoom) + 'px';
+  pageWrap.style.height = (pageEl.offsetHeight * zoom) + 'px';
+  document.getElementById('zoomVal').textContent = Math.round(zoom * 100) + '%';
+}
+document.getElementById('zoomIn').onclick = ()=>{ fitMode = false; zoom = Math.min(1.6, zoom + 0.1); applyZoom(); };
+document.getElementById('zoomOut').onclick = ()=>{ fitMode = false; zoom = Math.max(0.4, zoom - 0.1); applyZoom(); };
+document.getElementById('zoomFit').onclick = ()=>{ fitMode = true; applyZoom(); };
+window.addEventListener('resize', ()=> applyZoom());
+
+/* =====================================================================
+   8. 导出 / 导入 / 打印
+   ===================================================================== */
+/* 主路径：系统打印 → 矢量 PDF（文字可选中、放大不糊） */
+function exportPdf(){
+  toast('打印窗口已打开：目标选「另存为 PDF」，纸张 A4，边距选「无」');
+  setTimeout(()=> window.print(), 340);
+}
+
+/* 复制一份干净的 A4 页面到独立舞台（供位图导出与自测共用）：
+   html2canvas 对 position:fixed 的克隆元素裁剪会错位（导出成左侧窄条、其余空白），
+   所以导出期间把顶栏与主体临时隐藏，让这个 A4 盒子落在文档 (0,0) 的正常位置上。 */
+function buildExportBox(){
+  const stage = document.createElement('div');
+  stage.style.cssText = 'background:#ffffff;margin:0;padding:0';
+  const box = document.createElement('div');
+  box.className = 'page';
+  /* 高度取 1122px（略小于 297mm=1122.5px），否则按宽铺满 A4 时会溢出半像素、多出一张空白页 */
+  box.style.cssText = 'transform:none;box-shadow:none;margin:0;height:1122px;min-height:0;overflow:hidden';
+  /* 把页面上的排版与主题变量带过来，否则新盒子用的是 CSS 默认值 */
+  ['--fs','--lh','--gap','--accent','--accent-deep','--accent-strong','--accent-bg',
+   '--ink-main','--ink-sub','--ink-soft'].forEach(v=>{
+    const val = pageEl.style.getPropertyValue(v);
+    if(val) box.style.setProperty(v, val);
+  });
+  box.innerHTML = pageEl.innerHTML;
+  stage.appendChild(box);
+
+  /* 只在文档流里放这一个 A4 盒子：body 改成 block（页面可能是 flex 居中，会让克隆体在
+     html2canvas 的宽视口副本里被推偏），顶栏与主体先隐藏，渲染完再恢复 */
+  const hides = [document.querySelector('.topbar'), document.querySelector('.main'),
+                 document.getElementById('toast')];
+  const prev = hides.map(el=> el ? el.style.display : null);
+  const bodyPrev = document.body.style.display;
+  const bodyMarginPrev = document.body.style.margin;
+  document.body.style.display = 'block';
+  document.body.style.margin = '0';          /* 默认 8px 边距会把盒子推离原点，取景就带白边 */
+  hides.forEach(el=>{ if(el) el.style.display = 'none'; });
+  document.body.appendChild(stage);
+
+  const restore = ()=>{
+    hides.forEach((el, i)=>{ if(el) el.style.display = prev[i] || ''; });
+    document.body.style.display = bodyPrev;
+    document.body.style.margin = bodyMarginPrev;
+    stage.remove();
+  };
+  return { stage, box, restore };
+}
+
+/* 备选：位图 PDF（快，但放大略糊）。自己拼 html2canvas + jsPDF，
+   不用 html2pdf 的容器：容器会把 A4 盒按页宽重排，取景就偏。 */
+function exportImgPdf(){
+  const hasLib = typeof html2canvas !== 'undefined' && window.jspdf && window.jspdf.jsPDF;
+  if(!hasLib){
+    toast('PDF 组件未加载（需联网），已改用打印导出');
+    setTimeout(()=> window.print(), 200);
+    return;
+  }
+  const btn = document.getElementById('btnImgPdf');
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = '生成中…';
+
+  const { box, restore } = buildExportBox();
+
+  const done = ()=>{ restore(); btn.disabled = false; btn.textContent = old; };
+
+  const run = async ()=>{
+    try{
+      /* 显式给出取景区域：元素自身的文档坐标 + 元素尺寸。
+         不再依赖 html2canvas 从视口宽度推断（真实浏览器窗口变宽时，canvas 会被拉宽、内容挤到左边） */
+      const r = box.getBoundingClientRect();
+      const w = Math.round(r.width);
+      const h = Math.round(r.height);
+      const x = Math.round(r.left + window.scrollX);
+      const y = Math.round(r.top + window.scrollY);
+
+      const canvas = await html2canvas(box, {
+        scale: 2, useCORS: true, backgroundColor: '#ffffff',
+        x: x, y: y, width: w, height: h,
+        scrollX: 0, scrollY: 0,
+        windowWidth: Math.max(document.documentElement.clientWidth, x + w + 4),
+        windowHeight: Math.max(document.documentElement.clientHeight, y + h + 4)
+      });
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      const PW = 210, PH = 297;
+      const imgH = PW * canvas.height / canvas.width;
+      const data = canvas.toDataURL('image/jpeg', 0.96);
+
+      if(imgH <= PH + 0.6){
+        /* 单页：按 A4 宽等比，高度取实际比例，不硬拉满 */
+        pdf.addImage(data, 'JPEG', 0, 0, PW, Math.min(imgH, PH));
+      } else {
+        /* 内容超过一页时按页高切片，避免尾部多出空白页 */
+        const pxPerMm = canvas.width / PW;
+        const pageHpx = Math.floor(PH * pxPerMm);
+        let off = 0, page = 0;
+        while(off < canvas.height){
+          const slice = document.createElement('canvas');
+          slice.width = canvas.width;
+          slice.height = Math.min(pageHpx, canvas.height - off);
+          slice.getContext('2d').drawImage(canvas, 0, off, canvas.width, slice.height,
+            0, 0, canvas.width, slice.height);
+          if(page > 0) pdf.addPage();
+          pdf.addImage(slice.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0, PW,
+            slice.height / pxPerMm);
+          off += pageHpx; page++;
+        }
+      }
+
+      pdf.save((state.meta.name || '简历') + '-' + (state.meta.jobTitle || '') + '.pdf');
+      done();
+    }catch(err){
+      console.error(err); done();
+      toast('导出失败，请改用「打印」另存为 PDF');
+    }
+  };
+
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(()=> setTimeout(run, 80));
+  } else {
+    setTimeout(run, 80);
+  }
+}
+
+document.getElementById('btnPdf').onclick = exportPdf;
+document.getElementById('btnImgPdf').onclick = exportImgPdf;
+
+document.getElementById('btnReset').onclick = ()=>{
+  if(!confirm('恢复默认内容？当前编辑会被覆盖。')) return;
+  state = DEFAULTS();
+  state.meta = normalizeMeta(state.meta);
+  localStorage.removeItem(STORE_KEY);
+  renderEditor(); renderPreview(); applyZoom();
+  toast('已恢复默认');
+};
+
+document.getElementById('btnExportJson').onclick = ()=>{
+  /* 配置文件可能被转发，导出时剔除 API Key */
+  const snap = JSON.parse(JSON.stringify(state));
+  if(snap.ai) delete snap.ai.key;
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.meta.name || '简历') + '-配置.json';
+  a.click();
+  setTimeout(()=> URL.revokeObjectURL(a.href), 3000);
+  if(state.ai && state.ai.key) toast('已导出（不含 API Key）');
+};
+
+document.getElementById('btnImport').onclick = ()=> document.getElementById('fileImport').click();
+document.getElementById('fileImport').addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    try{
+      const s = JSON.parse(rd.result);
+      if(!s.meta || !s.modules || !s.order) throw new Error('结构不匹配');
+      const keepKey = (state.ai && state.ai.key) || '';
+      state = s;
+      state.layout = Object.assign({ fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' }, state.layout || {});
+      if(!state.theme) state.theme = 'navy';
+      state.ai = Object.assign({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
+        key: '', jd: '', scope: 'all' }, state.ai || {});
+      if(!state.ai.key && keepKey) state.ai.key = keepKey;   // 导入的配置不带 key，沿用本机已存的
+      state.meta = normalizeMeta(state.meta);                // 旧配置只有一行 contact，补成条目
+      renderEditor(); renderPreview(); applyLayout(); applyZoom(); save();
+      toast('配置已导入');
+    }catch(err){ toast('导入失败：不是本工具导出的配置'); }
+  };
+  rd.readAsText(f, 'utf-8');
+  e.target.value = '';
+});
+
+/* ---------- 导入已有简历 HTML：解析成 state ---------- */
+/* 只认简历模板那套结构：h1 姓名 → 头部 3 个 p（求职意向 / 联系行 / 摘要）→ h2 分段，
+   段内 h3 开项目、p 填信息与描述、ul/li 填 bullet（li 首个加粗 + 冒号视为小标题）。 */
+function parseResumeHtml(text){
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  const squash = s => String(s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  const txt = el => squash(el ? el.textContent : '');
+  /* 同 txt，但把内部 <strong>/<b> 还原成 ** 标记，保证导入后正文加粗还能编辑 */
+  const richTxt = el => {
+    if(!el) return '';
+    const c = el.cloneNode(true);
+    c.querySelectorAll('strong, b').forEach(s=> s.replaceWith('**' + s.textContent + '**'));
+    return squash(c.textContent);
+  };
+  const lines = el => {
+    const c = el.cloneNode(true);
+    c.querySelectorAll('br').forEach(b=> b.replaceWith('\n'));
+    return (c.textContent || '').split('\n').map(squash).filter(Boolean);
+  };
+  /* li 首个 strong/b 且紧跟冒号 → 当小标题 */
+  const liLabel = li => {
+    const first = li.firstElementChild;
+    if(!first || !/^(STRONG|B)$/.test(first.tagName)) return '';
+    const head = txt(first);
+    const rest = (li.textContent || '').slice(head.length).trimStart();
+    return /^[：:]/.test(rest) ? head : '';
+  };
+  const liItem = li => {
+    const label = liLabel(li);
+    const c = li.cloneNode(true);
+    if(label && c.firstElementChild) c.firstElementChild.remove();
+    c.querySelectorAll('strong, b').forEach(s=> s.replaceWith('**' + s.textContent + '**'));
+    let t = squash(c.textContent);
+    if(label) t = t.replace(/^[：:]\s*/, '');
+    return { label, text: t };
+  };
+
+  const h1 = doc.querySelector('h1');
+  if(!h1) throw new Error('没有找到姓名（<h1>）');
+
+  const meta = { name: txt(h1), jobTitle: '', contact: '', summary: '' };
+  const headPs = [];
+  for(let n = h1.nextElementSibling; n && n.tagName.toUpperCase() !== 'H2'; n = n.nextElementSibling){
+    if(n.tagName.toUpperCase() === 'P') headPs.push(n);
+  }
+  headPs.forEach(p=>{
+    const t = txt(p);
+    if(!t) return;
+    if(!meta.jobTitle && /^(求职意向|意向岗位|应聘岗位|目标岗位|应聘意向|求职方向)/.test(t)){
+      meta.jobTitle = t.replace(/^[^：:]{0,10}[：:]\s*/, '');
+      return;
+    }
+    if(!meta.contact && /@|1[3-9]\d{9}|github\.com|www\.|https?:\/\//.test(t)){ meta.contact = t; return; }
+    if(!meta.summary){ meta.summary = richTxt(p); return; }
+    meta.summary += ' ' + richTxt(p);
+  });
+
+  const styleOf = t=>{
+    if(/教育|学历/i.test(t)) return 'edu';
+    if(/项目|作品|开源/i.test(t)) return 'project';
+    if(/实习|工作|任职|实践经历/i.test(t)) return 'intern';
+    if(/技能|证书|荣誉|奖项|语言|能力/i.test(t)) return 'list';
+    return 'para';
+  };
+
+  const modules = {}; const order = []; let cur = null, seq = 0;
+
+  const fill = (mod, el, tag)=>{
+    const cls = (el.className || '').toString();
+    if(tag === 'H3'){
+      if(mod.style === 'project') mod.items.push({ name: txt(el), meta: '', stack: '', desc: '', bullets: [] });
+      else mod.items.push({ label: '', text: txt(el) });
+      return;
+    }
+    if(tag === 'P'){
+      if(mod.style === 'project'){
+        const it = mod.items[mod.items.length - 1];
+        if(!it) return;
+        if(/proj-desc|desc/i.test(cls)){ it.desc = richTxt(el); return; }
+        if(!it.meta){
+          const ls = lines(el);
+          it.meta = ls[0] || '';
+          if(ls[1]) it.stack = ls[1];
+          return;
+        }
+        if(!it.desc){ it.desc = richTxt(el); return; }
+        return;
+      }
+      if(mod.style === 'edu'){
+        const code = el.querySelector('code');
+        const time = code ? txt(code) : '';
+        const c = el.cloneNode(true);
+        c.querySelectorAll('code').forEach(x=> x.remove());
+        const text = richTxt(c).replace(/[｜|]\s*$/, '').trim();
+        if(text) mod.items.push({ text, time });
+        return;
+      }
+      if(mod.style === 'intern'){
+        const code = el.querySelector('code');
+        const time = code ? txt(code) : '';
+        const c = el.cloneNode(true);
+        c.querySelectorAll('code').forEach(x=> x.remove());
+        const parts = squash(c.textContent).split(/[｜|]/).map(squash).filter(Boolean);
+        mod.items.push({ company: parts[0] || '', role: parts[1] || '', time, bullets: [] });
+        return;
+      }
+      const t = richTxt(el);
+      if(t) mod.items.push({ label: '', text: t });
+      return;
+    }
+    if(tag === 'UL' || tag === 'OL'){
+      const lis = Array.from(el.querySelectorAll('li'));
+      if(!lis.length) return;
+      if(mod.style === 'project'){
+        let it = mod.items[mod.items.length - 1];
+        if(!it){ it = { name: '', meta: '', stack: '', desc: '', bullets: [] }; mod.items.push(it); }
+        lis.forEach(li=> it.bullets.push(liItem(li)));
+        return;
+      }
+      if(mod.style === 'intern'){
+        let it = mod.items[mod.items.length - 1];
+        if(!it){ it = { company: '', role: '', time: '', bullets: [] }; mod.items.push(it); }
+        lis.forEach(li=> it.bullets.push(liItem(li)));
+        return;
+      }
+      if(mod.style === 'list'){ lis.forEach(li=> mod.items.push(liItem(li))); return; }
+      lis.forEach(li=>{
+        const p = liItem(li);
+        mod.items.push({ label: '', text: (p.label ? p.label + '：' : '') + p.text });
+      });
+    }
+  };
+
+  for(let node = doc.body.firstElementChild; node; node = node.nextElementSibling){
+    const tag = node.tagName.toUpperCase();
+    if(tag === 'H2'){
+      const title = txt(node) || ('模块 ' + (seq + 1));
+      const id = 'm' + (++seq);
+      cur = { title, style: styleOf(title), visible: true, items: [] };
+      modules[id] = cur; order.push(id);
+      continue;
+    }
+    if(cur) fill(cur, node, tag);
+  }
+
+  meta.contacts = splitContacts(meta.contact);
+  return { meta, modules, order };
+}
+
+document.getElementById('btnImportHtml').onclick = ()=> document.getElementById('fileHtml').click();
+document.getElementById('fileHtml').addEventListener('change', e=>{
+  const f = e.target.files[0];
+  e.target.value = '';
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    let parsed;
+    try{ parsed = parseResumeHtml(String(rd.result || '')); }
+    catch(err){ toast('解析失败：' + err.message); return; }
+    const n = parsed.order.length;
+    if(!n){ toast('没认出模块：这份 HTML 可能不是简历模板结构'); return; }
+    const names = parsed.order.map(id=> parsed.modules[id].title).join(' / ');
+    if(!confirm('解析到 ' + n + ' 个模块（' + names + '）\n将覆盖当前内容，排版与主题保留。继续？')) return;
+    state.meta = normalizeMeta(Object.assign(
+      { name: '', jobTitle: '', contact: '', summary: '', contacts: [] }, parsed.meta));
+    state.modules = parsed.modules;
+    state.order = parsed.order;
+    state.ai.scope = 'all';
+    renderEditor(); renderPreview(); applyLayout(); checkOverflow(); applyZoom(); save();
+    toast('已导入：' + n + ' 个模块，' + parsed.order.reduce((s, id)=> s + (parsed.modules[id].items || []).length, 0) + ' 条内容');
+  };
+  rd.onerror = ()=> toast('读取失败：换个 .html 文件再试');
+  rd.readAsText(f, 'utf-8');
+});
+
+/* ---------- 左右分隔条拖动 ---------- */
+const splitterEl = document.getElementById('splitter');
+const mainEl = document.querySelector('.main');
+let splitDrag = false;
+
+splitterEl.addEventListener('pointerdown', e=>{
+  splitDrag = true;
+  splitterEl.classList.add('dragging');
+  splitterEl.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+splitterEl.addEventListener('pointermove', e=>{
+  if(!splitDrag) return;
+  const left = mainEl.getBoundingClientRect().left;
+  const limit = Math.min(860, Math.max(420, window.innerWidth - 430));
+  const w = Math.min(Math.max(320, Math.round(e.clientX - left)), limit);
+  state.layout.editorW = w;
+  setEditorWidth(w);
+  syncLabels();
+  applyZoom();
+});
+function endSplit(){
+  if(!splitDrag) return;
+  splitDrag = false;
+  splitterEl.classList.remove('dragging');
+  save();
+}
+splitterEl.addEventListener('pointerup', endSplit);
+splitterEl.addEventListener('pointercancel', endSplit);
+splitterEl.addEventListener('lostpointercapture', endSplit);
+
+/* =====================================================================
+   9. 启动
+   ===================================================================== */
+renderEditor();
+applyLayout();
+renderPreview();
+applyZoom();
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(()=>{ applyZoom(); });
+}
+window.addEventListener('load', ()=> setTimeout(applyZoom, 60));
+</script>
+</body>
+</html>

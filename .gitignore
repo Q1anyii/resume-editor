@@ -1,0 +1,11 @@
+# 临时/测试产物
+*.tmp
+*.log
+t-*.html
+*.png
+*.pdf
+# Office / 系统
+~$*
+Thumbs.db
+desktop.ini
+.DS_Store
