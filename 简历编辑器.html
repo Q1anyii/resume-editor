@@ -281,13 +281,16 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
 }
 @media print{
   @page{size:A4;margin:0}
-  body{overflow:visible;background:#fff}
+  html,body{margin:0!important;padding:0!important;background:#fff}
+  body{overflow:visible}
+  /* 浏览器默认不打印背景色，技术栈底条会整条消失；对页面内所有节点强制保留底色 */
+  .page,.page *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .topbar,.rail,.editor,.splitter,.pv-bar,.toast{display:none!important}
   .main{display:block;height:auto}
-  .preview{background:#fff;display:block;overflow:visible;height:auto}
+  .preview{background:#fff;display:block;overflow:visible;height:auto;padding:0}
   .pv-scroll{padding:0;overflow:visible;display:block}
   .page-wrap{transform:none!important;width:auto!important;height:auto!important}
-  .page{transform:none!important;box-shadow:none!important;margin:0}
+  .page{transform:none!important;box-shadow:none!important;margin:0;width:210mm;max-width:210mm}
 }
 </style>
 </head>
@@ -303,7 +306,7 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
   <button class="btn" id="btnImportHtml" title="读取已有简历 HTML，解析成可编辑的模块">导入 HTML</button>
   <input type="file" id="fileHtml" class="file-input" accept=".html,.htm,text/html">
   <button class="btn" id="btnExportHtml" title="导出一份干净的简历 HTML：可直接打开、可投递，也能再被本工具导入">导出 HTML</button>
-  <button class="btn" id="btnImgPdf" title="用系统打印输出矢量 PDF：文字可选中、可被 ATS 解析">打印 · 矢量</button>
+  <button class="btn" id="btnImgPdf" title="用系统打印输出矢量 PDF（文字可选中、可被 ATS 解析）；边距务必选「无」">打印 · 矢量</button>
   <button class="btn primary" id="btnPdf" title="先大窗预览，确认后直接生成 PDF 文件（不弹打印窗口）">导出 PDF</button>
 </div>
 
@@ -1777,7 +1780,10 @@ h1,h2,h3,p,ul,li{margin:0;padding:0}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 @page{size:A4;margin:0}
-@media print{body{background:#fff}.resume{margin:0;box-shadow:none;width:210mm;min-height:0}}
+@media print{@page{size:A4;margin:0}
+html,body{margin:0!important;padding:0!important;background:#fff}
+.resume,.resume *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.resume{margin:0;box-shadow:none;width:210mm;min-height:0}}
 @media screen and (max-width:800px){body{padding:0}.resume{width:100%;margin:0;min-height:0;
   box-shadow:none;padding:10mm 6mm}}`;
 
@@ -1885,7 +1891,7 @@ function exportHtml(){
 
 /* 打印路径：系统打印 → 矢量 PDF（文字可选中、可被 ATS 解析） */
 function exportPdf(){
-  toast('打印窗口已打开：目标选「另存为 PDF」，纸张 A4，边距选「无」');
+  toast('打印窗口已打开：目标「另存为 PDF」 · 纸张 A4 · 边距「无」 · 缩放保持默认；技术栈底条已强制打印，不用勾「背景图形」');
   setTimeout(()=> window.print(), 340);
 }
 
