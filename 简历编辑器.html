@@ -191,6 +191,33 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
 .preset-btn.on{border-color:var(--brand);color:var(--brand);font-weight:600;
   box-shadow:0 0 0 2px rgba(47,111,187,.14);background:#f7faff}
 .preset-btn small{display:block;font-size:9.5px;color:#9aa7b8;font-weight:400;letter-spacing:0}
+/* 版式模板：按钮里画一个小缩略图，让「改的是版面」一眼可见 */
+.tpl-row{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:8px}
+.tpl-btn{border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 3px 5px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10.5px;color:var(--sub);
+  line-height:1.3;transition:.15s}
+.tpl-btn:hover{border-color:var(--brand-2);color:var(--brand)}
+.tpl-btn.on{border-color:var(--brand);color:var(--brand);font-weight:600;
+  box-shadow:0 0 0 2px rgba(47,111,187,.14);background:#f7faff}
+.tpl-thumb{position:relative;width:32px;height:42px;border:1px solid #c8d3e2;border-radius:2px;
+  background:#fff;overflow:hidden;flex:0 0 auto}
+.tpl-thumb::before,.tpl-thumb::after{content:'';position:absolute}
+.th-classic::before{left:3px;right:3px;top:4px;height:3px;background:#8ea4c0}
+.th-classic::after{left:3px;right:3px;top:11px;height:1px;background:#dae2ee;
+  box-shadow:0 4px 0 #dae2ee,0 8px 0 #dae2ee,0 12px 0 #dae2ee,0 16px 0 #dae2ee,0 20px 0 #dae2ee}
+.th-banner::before{left:0;right:0;top:0;height:13px;background:#5b7fa8}
+.th-banner::after{left:3px;right:3px;top:17px;height:1px;background:#dae2ee;
+  box-shadow:0 4px 0 #dae2ee,0 8px 0 #dae2ee,0 12px 0 #dae2ee,0 16px 0 #dae2ee}
+.th-sidebar::before{left:0;top:0;bottom:0;width:12px;background:#5b7fa8}
+.th-sidebar::after{left:16px;right:3px;top:4px;height:1px;background:#dae2ee;
+  box-shadow:0 4px 0 #dae2ee,0 8px 0 #dae2ee,0 12px 0 #dae2ee,0 16px 0 #dae2ee,0 22px 0 #dae2ee}
+.th-timeline::before{left:11px;top:5px;bottom:3px;width:1px;background:#8ea4c0}
+.th-timeline::after{left:14px;right:3px;top:6px;height:1px;background:#dae2ee;
+  box-shadow:0 5px 0 #dae2ee,0 10px 0 #dae2ee,0 15px 0 #dae2ee,0 20px 0 #dae2ee}
+.th-card::before{left:6px;right:6px;top:4px;height:4px;background:#8ea4c0;border-radius:1px}
+.th-card::after{left:3px;right:3px;top:12px;height:7px;background:#edf1f7;border-radius:2px;
+  box-shadow:0 10px 0 #edf1f7,0 20px 0 #edf1f7}
+.tpl-note{font-size:10.5px;color:#9aa7b8;line-height:1.55;margin:-2px 0 9px}
 /* AI 面板滚动 */
 #aiResult{max-height:340px;overflow-y:auto;padding-right:4px;margin-top:4px}
 #aiResult::-webkit-scrollbar{width:6px}
@@ -295,6 +322,8 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
   .page{transform:none!important;box-shadow:none!important;margin:0;width:210mm;max-width:210mm}
 }
 </style>
+<!-- 版式模板的 CSS 由脚本注入：预览与「导出 HTML」共用同一份，避免两处手抄走形 -->
+<style id="tplCss"></style>
 </head>
 <body>
 
@@ -438,7 +467,7 @@ const DEFAULTS = () => ({
     contact: '意向：城市 ｜ 13800000000 ｜ you@example.com ｜ GitHub：github.com/yourname ｜ 作品：example.com',
     summary: '一句话说清你能做什么：主攻方向 + 一个可量化成果 + 一个加分项，30–60 字，不堆名词。'
   },
-  layout: { fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' },
+  layout: { fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard', tpl: 'classic' },
   theme: 'navy',
   ai: {
     baseUrl: 'https://api.deepseek.com',
@@ -525,6 +554,112 @@ const LAYOUT_PRESETS = [
 ];
 const presetOf = id => LAYOUT_PRESETS.find(p=> p.id === id);
 
+/* 版式模板：动的是「页面骨架」——抬头位置、分栏、时间列，而不是字号行距。
+   与排版预设、主题配色三者互相独立，可任意组合。 */
+const LAYOUT_TPLS = [
+  { id:'classic',  name:'经典单栏', hint:'顶格抬头' },
+  { id:'banner',   name:'横幅抬头', hint:'通栏色块' },
+  { id:'sidebar',  name:'左侧深栏', hint:'技能压左栏' },
+  { id:'timeline', name:'时间轴',   hint:'时间贴左列' },
+  { id:'card',     name:'卡片分区', hint:'每块独立底纹' }
+];
+const tplOf = id => LAYOUT_TPLS.find(t=> t.id === id);
+function tplId(){
+  const t = (state && state.layout && state.layout.tpl) || 'classic';
+  return tplOf(t) ? t : 'classic';
+}
+function tplName(id){ const t = tplOf(id); return t ? t.name : '经典单栏'; }
+
+/* 三套非默认版式的样式。root 传 '.page'（右侧预览）或 '.resume'（导出的 HTML），
+   一份代码两处用，避免预览与导出各手抄一遍导致走形。 */
+function tplCss(root){
+  const R = root;
+  return `
+/* ===== 版式 A：横幅抬头（通栏色块 + 单栏正文） ===== */
+${R}.tpl-banner{padding-top:0}
+${R}.tpl-banner .r-head{margin:0 -13mm 0;padding:9mm 13mm 7.5mm;background:var(--accent);color:#fff}
+${R}.tpl-banner .r-head .r-name{color:#fff;letter-spacing:6px;margin-bottom:2pt}
+${R}.tpl-banner .r-head .r-title{color:rgba(255,255,255,.93);margin-bottom:2pt;letter-spacing:2px}
+${R}.tpl-banner .r-head .r-contact{color:rgba(255,255,255,.85);margin-bottom:0}
+${R}.tpl-banner .r-head a{color:#fff;text-decoration:underline}
+${R}.tpl-banner .r-summary{margin:6pt 0 5pt;padding:4pt 7pt;background:var(--accent-bg);
+  border-left:2.4pt solid var(--accent);color:var(--ink-sub)}
+${R}.tpl-banner .r-h2{border-bottom:1pt solid var(--accent-line);padding-left:11pt;position:relative;letter-spacing:2px}
+${R}.tpl-banner .r-h2::before{content:'';position:absolute;left:0;top:.3em;width:4.2pt;height:.92em;background:var(--accent)}
+
+/* ===== 版式 B：左侧深色栏（姓名 / 联系 / 技能压左，其余走右） ===== */
+${R}.tpl-sidebar{padding:0;display:block}
+${R}.tpl-sidebar .r-cols{display:grid;grid-template-columns:64mm 1fr;align-items:stretch;min-height:296.5mm}
+${R}.tpl-sidebar .r-side{background:var(--accent);color:#fff;padding:11mm 7mm 9mm}
+${R}.tpl-sidebar .r-side .r-name{color:#fff;font-size:calc(var(--fs) * 1.7);letter-spacing:3px;
+  line-height:1.22;margin:0 0 3pt;word-break:break-word}
+${R}.tpl-sidebar .r-side .r-title{color:rgba(255,255,255,.9);font-size:calc(var(--fs) * .95);
+  letter-spacing:.5px;line-height:1.45;margin:0 0 5pt}
+${R}.tpl-sidebar .r-side .r-contact{color:rgba(255,255,255,.82);font-size:calc(var(--fs) * .84);line-height:1.8}
+${R}.tpl-sidebar .r-side .r-contact a{color:#fff;text-decoration:underline}
+${R}.tpl-sidebar .r-side .r-h2{color:#fff;border-bottom:1pt solid rgba(255,255,255,.42);
+  font-size:calc(var(--fs) * 1.02);letter-spacing:1.5px;margin:calc(var(--gap) * 1.25) 0 3pt;padding-bottom:2pt}
+${R}.tpl-sidebar .r-side .r-ul{padding-left:calc(var(--fs) * 1.1);margin-top:2pt}
+${R}.tpl-sidebar .r-side .r-ul li{margin-bottom:4.5pt;line-height:calc(var(--lh) * .99)}
+${R}.tpl-sidebar .r-side .r-ul li::before{color:rgba(255,255,255,.9);font-size:calc(var(--fs) * .86)}
+${R}.tpl-sidebar .r-side .r-strong{color:#fff}
+${R}.tpl-sidebar .r-body{padding:11mm 11mm 9mm 9mm;min-width:0}
+${R}.tpl-sidebar .r-body .r-summary{margin:0 0 5pt}
+${R}.tpl-sidebar .r-body .r-h2:first-child{margin-top:0}
+
+/* ===== 版式 C：时间轴（时间贴左列，竖线分隔） ===== */
+${R}.tpl-timeline .r-name{text-align:center;letter-spacing:9px;margin-bottom:2pt}
+${R}.tpl-timeline .r-title{text-align:center;letter-spacing:2px;margin-bottom:2pt}
+${R}.tpl-timeline .r-contact{text-align:center;padding-bottom:5pt;border-bottom:3pt double var(--accent)}
+${R}.tpl-timeline .r-summary{margin:5pt 0 0}
+${R}.tpl-timeline .r-h2{border-bottom:0;padding-bottom:0;margin-top:calc(var(--gap) * 1.2);letter-spacing:3px}
+${R}.tpl-timeline .r-h2::before{content:'';display:inline-block;width:13pt;height:2pt;
+  background:var(--accent);vertical-align:.08em;margin-right:5pt}
+${R}.tpl-timeline .r-tl-item{display:grid;grid-template-columns:26mm 1fr;column-gap:3.5mm;margin-bottom:4pt}
+${R}.tpl-timeline .r-tl-time{font-size:calc(var(--fs) * .85);color:var(--ink-sub);text-align:right;
+  padding:1pt 3.5mm 0 0;border-right:1pt solid var(--accent-line);line-height:1.4}
+${R}.tpl-timeline .r-tl-body{min-width:0}
+${R}.tpl-timeline .r-tl-body .r-h3:first-child{margin-top:0}
+${R}.tpl-timeline .tl-hide{display:none}
+
+/* ===== 版式 D：卡片分区（居中抬头 + 每个模块一张浅底卡片） ===== */
+${R}.tpl-card{padding-top:0}
+${R}.tpl-card .r-head{text-align:center;padding:9mm 12mm 6.5mm;border-bottom:2.4pt double var(--accent);
+  margin-bottom:5mm}
+${R}.tpl-card .r-name{letter-spacing:4px;margin-bottom:2pt}
+${R}.tpl-card .r-title{letter-spacing:1.5px;margin-bottom:2pt}
+${R}.tpl-card .r-summary{margin:0 0 calc(var(--gap) * .8);
+  padding-left:3.4mm;border-left:2.6pt solid var(--accent);color:var(--ink-sub)}
+${R}.tpl-card .r-sec{background:var(--accent-bg);border-radius:2mm;
+  padding:3.2mm 4mm 3.6mm;margin-bottom:calc(var(--gap) * .85)}
+${R}.tpl-card .r-sec .r-h2{margin-top:0;border-bottom:0;padding:0 0 0 calc(var(--fs) * 1);position:relative;
+  letter-spacing:1.2px}
+${R}.tpl-card .r-sec .r-h2::before{content:'';position:absolute;left:0;top:.36em;width:2.6pt;
+  height:.82em;background:var(--accent);border-radius:1px}
+${R}.tpl-card .r-sec .r-h2 + .r-p,
+${R}.tpl-card .r-sec .r-h2 + .r-ul,
+${R}.tpl-card .r-sec .r-h2 + .r-h3{margin-top:2.5pt}
+
+/* 分页礼貌：模块标题不单独留在页末，卡片不被腰斩（A4 一页内不影响，超页时才有意义） */
+${R} .r-h2{break-after:avoid;page-break-after:avoid}
+${R}.tpl-card .r-sec{break-inside:avoid;page-break-inside:avoid}
+
+/* 量页高时把「撑满一页」的写法临时放开，否则侧栏永远被算成单页 */
+${R}.measuring .r-cols,${R}.measuring .r-side{min-height:0}
+
+/* 窄屏（导出文件在手机上打开）：色块别溢出、侧栏改上下排 */
+@media screen and (max-width:800px){
+  ${R}.tpl-banner .r-head{margin-left:-6mm;margin-right:-6mm;padding-left:6mm;padding-right:6mm}
+  ${R}.tpl-sidebar .r-cols{grid-template-columns:1fr}
+  ${R}.tpl-sidebar .r-side,${R}.tpl-sidebar .r-body{min-height:0}
+  ${R}.tpl-sidebar .r-side{padding:9mm 7mm}
+  ${R}.tpl-timeline .r-tl-item{grid-template-columns:24mm 1fr}
+}
+`;
+}
+/* 预览用同一份 CSS；脚本一加载就注入，切版式只需换 class */
+document.getElementById('tplCss').textContent = tplCss('.page');
+
 let state = loadState();
 let uid = Date.now();
 const nextId = () => 'm' + (++uid);
@@ -536,7 +671,7 @@ function loadState(){
       const s = JSON.parse(raw);
       if(s && s.meta && s.modules && Array.isArray(s.order)){
         // 兼容旧快照：补齐新增的排版、主题与 AI 字段
-        s.layout = Object.assign({ fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' }, s.layout || {});
+        s.layout = Object.assign({ fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard', tpl: 'classic' }, s.layout || {});
         if(!s.theme) s.theme = 'navy';
         s.ai = Object.assign({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
           key: '', jd: '', scope: 'all', systemPrompt: '' }, s.ai || {});
@@ -646,6 +781,11 @@ function renderEditor(){
         ${foldBtn('p-layout')}
       </div>
       <div class="panel-body">
+        <div class="tpl-row">
+          ${LAYOUT_TPLS.map(tp=> `<button type="button" class="tpl-btn ${tplId() === tp.id ? 'on' : ''}" data-tpl="${tp.id}" title="切换版式：${tp.name}（${tp.hint}）">
+              <span class="tpl-thumb th-${tp.id}"></span>${tp.name}</button>`).join('')}
+        </div>
+        <div class="tpl-note">版式改的是版面骨架（抬头位置 / 分栏 / 时间列 / 卡片底纹），与下面的间距预设、主题配色互不影响，可任意组合。</div>
         <div class="preset-row">
           ${LAYOUT_PRESETS.map(p=> `<button class="preset-btn ${L.preset === p.id ? 'on' : ''}" data-preset="${p.id}" title="套用这套排版（只改字号 / 行距 / 模块距）">${p.name}<small>${p.hint}</small></button>`).join('')}
         </div>
@@ -775,7 +915,8 @@ function renderEditor(){
     <div class="tip">
       拖 <b>⠿</b> 可调整模块顺序，拖动时会出现一条蓝色插入线告诉你落点；<b>◉</b> 切换模块显隐；<b>✕</b> 删模块；<b>✦</b> 让 AI 只对齐这一个模块；<b>▾ / ▸</b> 折叠编辑区。<br>
       模块里的每条（项目 / 经历 / 教育 / 技能条目 / 段落）左侧都有 <b>⠿</b>；bullet 的 <b>⠿</b> 只在本条内调序。每根 bullet 右侧三个按钮：<b>◉</b> 在简历里隐藏 / 显示（隐藏的不进预览与 PDF）、<b>▾</b> 折叠这条、<b>✕</b> 删除。折叠后会留一行小字提醒这条写了什么。<br>
-      <b>排版</b>：4 套预设（标准 / 紧凑 / 舒展 / 疏朗）只改字号、行距、模块距，与下面的主题配色互相独立，可任意组合；也能继续用滑块微调，微调后预设标记为「自定义」。<br>
+      <b>版式</b>：经典单栏 / 横幅抬头 / 左侧深栏 / 时间轴 / 卡片分区五套，改的是<b>版面骨架</b>（抬头放哪、要不要分栏、时间贴哪一列、模块是否上底纹），不是字号间距的小修小补；五套都能和任意主题、任意间距预设自由组合，切换后预览、导出 HTML、PDF 三处一致。<br>
+      <b>排版</b>：4 套预设（标准 / 紧凑 / 舒展 / 疏朗）只改字号、行距、模块距，与上面的版式、下面的主题配色互相独立；也能继续用滑块微调，微调后预设标记为「自定义」。<br>
       内容会自动存到本机浏览器，关掉再打开还在。<br>
       <b>自定义加粗</b>：任何多行内容里选中一段字，点右侧 <b>B</b> 按钮即加粗；也可以手写 <b>**文字**</b>。预览、PDF 导出、截图都按加粗显示。<br>
       <b>AI 对齐 JD</b>：填 Base URL / 模型 / Key，粘贴 JD，点「生成修改建议」，逐条采用即可。建议列表在框内滚动，不会把面板撑长。Key 只存在这台电脑，请求直连你填的端点，不经中转；<b>导出配置不含 Key</b>。<br>
@@ -1357,68 +1498,114 @@ function syncDocTitle(){
   if(document.title !== t) document.title = t;
 }
 
-function renderPreview(){
-  const m = state.meta;
-  let html = '';
+/* ---------- 简历正文（预览与「导出 HTML」共用这一套生成逻辑） ---------- */
+/* 时间轴版式要把「20XX.XX – 20XX.XX ｜ 其余信息」里的时间拆到左侧列 */
+function splitTime(str){
+  const s = String(str == null ? '' : str).trim();
+  const parts = s.split(/\s*｜\s*/);
+  const first = (parts[0] || '').trim();
+  if(/^(?:\d{4}|19\d{2}|20XX)/.test(first)){
+    parts.shift();
+    return { time: first, rest: parts.join(' ｜ ') };
+  }
+  return { time: '', rest: s };
+}
+function ulHtml(list){
+  const on = (list || []).filter(b=> b.visible !== false);   /* 隐藏的 bullet 不进正文 */
+  if(!on.length) return '';
+  return '<ul class="r-ul">' + on.map(b=>
+    '<li>' + (b.label ? '<strong class="r-strong">' + esc(b.label) + '</strong>：' : '') + richText(b.text || '') + '</li>'
+  ).join('') + '</ul>';
+}
+/* 时间轴的一格：左列时间、右列内容。时间同时在正文里留一份隐藏 code，导入时才不会丢 */
+function tlWrap(time, inner){
+  return '<div class="r-tl-item"><div class="r-tl-time">' + esc(time || '') + '</div>'
+    + '<div class="r-tl-body">' + inner + '</div></div>';
+}
+function modHtml(mod, tpl){
+  const tl = tpl === 'timeline';
+  let body = '';
 
-  html += `<div class="r-name">${esc(m.name)}</div>`;
-  html += `<div class="r-title">求职意向：${esc(m.jobTitle)}</div>`;
-  html += `<div class="r-contact">${richText(m.contact)}</div>`;
-  html += `<div class="r-summary">${richText(m.summary)}</div>`;
-
-  state.order.forEach(id=>{
-    const mod = state.modules[id];
-    if(!mod || !mod.visible) return;
-    html += `<div class="r-h2">${esc(mod.title)}</div>`;
-
-    if(mod.style === 'edu'){
-      (mod.items || []).forEach(it=>{
-        html += `<div class="r-p">${richText(it.text)}${it.time ? ' ｜ <span class="r-code">' + esc(it.time) + '</span>' : ''}</div>`;
-      });
-    } else if(mod.style === 'project'){
-      (mod.items || []).forEach(it=>{
-        if(it.name) html += `<div class="r-h3">${esc(it.name)}</div>`;
-        if(it.meta) html += `<div class="r-meta">${richText(it.meta)}</div>`;
-        if(it.stack) html += `<div class="r-meta"><span class="r-code">${esc(it.stack)}</span></div>`;
-        if(it.desc) html += `<div class="r-desc">${esc(it.desc)}</div>`;
-        const bs = (it.bullets || []).filter(b=> b.visible !== false);   /* 隐藏的 bullet 不进正文 */
-        if(bs.length){
-          html += '<ul class="r-ul">' + bs.map(b=>{
-            const t = richText(b.text || '');
-            return '<li>' + (b.label ? '<span class="r-strong">' + esc(b.label) + '</span>：' : '') + t + '</li>';
-          }).join('') + '</ul>';
-        }
-      });
-    } else if(mod.style === 'intern'){
-      (mod.items || []).forEach(it=>{
-        html += `<div class="r-p"><span class="r-strong">${esc(it.company)}</span>`
-          + (it.role ? ' ｜ ' + esc(it.role) : '')
-          + (it.time ? ' ｜ <span class="r-code">' + esc(it.time) + '</span>' : '')
-          + '</div>';
-        const bs = (it.bullets || []).filter(b=> b.visible !== false);
-        if(bs.length){
-          html += '<ul class="r-ul">' + bs.map(b=>{
-            const t = richText(b.text || '');
-            return '<li>' + (b.label ? '<span class="r-strong">' + esc(b.label) + '</span>：' : '') + t + '</li>';
-          }).join('') + '</ul>';
-        }
-      });
-    } else if(mod.style === 'list'){
-      const items = mod.items || [];
-      if(items.length){
-        html += '<ul class="r-ul">' + items.map(it=>{
-          const t = richText(it.text || '');
-          return '<li>' + (it.label ? '<span class="r-strong">' + esc(it.label) + '</span>：' : '') + t + '</li>';
-        }).join('') + '</ul>';
+  if(mod.style === 'edu'){
+    (mod.items || []).forEach(it=>{
+      const code = it.time ? '<code class="r-code' + (tl ? ' tl-hide' : '') + '">' + esc(it.time) + '</code>' : '';
+      const p = '<p class="r-p">' + richText(it.text || '') + (it.time ? (tl ? code : ' ｜ ' + code) : '') + '</p>';
+      body += tl ? tlWrap(it.time, p) : p;
+    });
+  } else if(mod.style === 'project'){
+    (mod.items || []).forEach(it=>{
+      const st = tl ? splitTime(it.meta) : { time: '', rest: it.meta || '' };
+      let s = '';
+      if(it.name) s += '<h3 class="r-h3">' + esc(it.name) + '</h3>';
+      /* meta 与 stack 写进同一个 p、用 br 分两行：导入时按 br 拆回两段，不会被当成描述 */
+      if(it.meta || it.stack || st.time){
+        const seg = [];
+        if(st.rest)  seg.push(richText(st.rest));
+        if(it.stack) seg.push('<span class="r-code">' + esc(it.stack) + '</span>');
+        s += '<p class="r-meta">' + seg.join('<br>')
+           + (tl && st.time ? '<code class="r-code tl-hide">' + esc(st.time) + '</code>' : '') + '</p>';
       }
-    } else {
-      (mod.items || []).forEach(it=>{
-        html += `<div class="r-p">${richText(it.text || '')}</div>`;
-      });
-    }
-  });
+      if(it.desc)  s += '<p class="r-desc">' + richText(it.desc) + '</p>';
+      s += ulHtml(it.bullets);
+      body += tl ? tlWrap(st.time, s) : s;
+    });
+  } else if(mod.style === 'intern'){
+    (mod.items || []).forEach(it=>{
+      let head = '<p class="r-p"><strong class="r-strong">' + esc(it.company || '') + '</strong>';
+      if(it.role) head += ' ｜ ' + esc(it.role);
+      if(it.time) head += tl ? '<code class="r-code tl-hide">' + esc(it.time) + '</code>'
+                             : ' ｜ <code class="r-code">' + esc(it.time) + '</code>';
+      head += '</p>';
+      const inner = head + ulHtml(it.bullets);
+      body += tl ? tlWrap(it.time, inner) : inner;
+    });
+  } else if(mod.style === 'list'){
+    const on = (mod.items || []).filter(it=> it.visible !== false);
+    if(on.length) body = '<ul class="r-ul">' + on.map(it=>
+      '<li>' + (it.label ? '<strong class="r-strong">' + esc(it.label) + '</strong>：' : '') + richText(it.text || '') + '</li>'
+    ).join('') + '</ul>';
+  } else {
+    (mod.items || []).forEach(it=>{
+      body += '<p class="r-p">' + richText(it.text || '') + '</p>';
+    });
+  }
 
-  pageEl.innerHTML = html;
+  if(!body) return '';
+  return '<h2 class="r-h2">' + esc(mod.title) + '</h2>' + body;
+}
+function headParts(){
+  const m = state.meta || {};
+  return {
+    name:    '<h1 class="r-name">' + esc(m.name || '') + '</h1>',
+    title:   m.jobTitle ? '<p class="r-title">求职意向：' + esc(m.jobTitle) + '</p>' : '',
+    contact: m.contact  ? '<p class="r-contact">' + richText(m.contact) + '</p>' : '',
+    summary: m.summary  ? '<p class="r-summary">' + richText(m.summary) + '</p>' : ''
+  };
+}
+/* 版式只决定「哪块内容放哪儿」，文字与语义标签四套一致 —— 导出、PDF、导入都还能接着用 */
+function buildBody(tpl){
+  const H = headParts();
+  const mods = state.order.map(id=> state.modules[id]).filter(mo=> mo && mo.visible);
+  /* 每个模块套一层 r-sec：卡片版式靠它上底纹，其余版式这层容器透明、不影响原先的间距与折叠 */
+  const all = list => list.map(mo=> '<section class="r-sec">' + modHtml(mo, tpl) + '</section>').join('');
+
+  if(tpl === 'sidebar'){
+    const side = mods.filter(mo=> mo.style === 'list');   /* 技能类进左栏，其余走主栏 */
+    const rest = mods.filter(mo=> mo.style !== 'list');
+    return '<div class="r-cols">'
+      + '<aside class="r-side">' + H.name + H.title + H.contact + all(side) + '</aside>'
+      + '<main class="r-body">' + H.summary + all(rest) + '</main>'
+      + '</div>';
+  }
+  if(tpl === 'banner' || tpl === 'card'){
+    return '<header class="r-head">' + H.name + H.title + H.contact + '</header>'
+      + H.summary + all(mods);
+  }
+  return H.name + H.title + H.contact + H.summary + all(mods);
+}
+
+function renderPreview(){
+  pageEl.innerHTML = buildBody(tplId());
   checkOverflow();
   syncDocTitle();          /* 姓名 / 求职意向一改，浏览器标签页与打印默认文件名同步 */
 }
@@ -1429,8 +1616,16 @@ function applyLayout(){
   pageEl.style.setProperty('--fs', L.fs + 'pt');
   pageEl.style.setProperty('--lh', String(L.lh));
   pageEl.style.setProperty('--gap', L.gap + 'pt');
+  syncTplClass();
   setEditorWidth(L.editorW);
   applyTheme();
+}
+
+/* 版式落成 page 上的 class：tpl-banner / tpl-sidebar / tpl-timeline，经典单栏不加 class */
+function syncTplClass(){
+  const tpl = tplId();
+  ['tpl-banner','tpl-sidebar','tpl-timeline'].forEach(c=> pageEl.classList.remove(c));
+  if(tpl !== 'classic') pageEl.classList.add('tpl-' + tpl);
 }
 
 /* 左栏宽度（分隔条拖动与滑块共用） */
@@ -1449,6 +1644,7 @@ function applyTheme(){
   pageEl.style.setProperty('--ink-main', t.ink);
   pageEl.style.setProperty('--ink-sub', t.sub);
   pageEl.style.setProperty('--ink-soft', t.soft);
+  pageEl.style.setProperty('--accent-line', t.accent + '3d');   /* 由主题色派生的淡分隔线 */
 }
 
 /* 同步滑块右侧数值 */
@@ -1468,9 +1664,11 @@ function syncLabels(){
 function checkOverflow(){
   const A4_PX = 297 / 25.4 * 96;                  // ≈ 1122.5px
   const prev = pageEl.style.minHeight;
+  pageEl.classList.add('measuring');              /* 侧栏「撑满一页」的写法此时要让开 */
   pageEl.style.minHeight = '0px';
   const h = pageEl.offsetHeight;
   pageEl.style.minHeight = prev;
+  pageEl.classList.remove('measuring');
   const el = document.getElementById('pageState');
   if(h > A4_PX + 2){
     const over = Math.round((h - A4_PX) / 96 * 72);
@@ -1592,9 +1790,18 @@ editorEl.addEventListener('click', e=>{
 
   /* 排版恢复默认 */
   if(btn.id === 'btnLayoutReset'){
-    state.layout = { fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' };
-    renderEditor(); applyLayout(); syncLabels(); applyZoom(); save();
-    toast('排版已恢复默认');
+    /* 版式是「用户挑的模板」，恢复默认只把字号 / 行距 / 模块距拉回来，不擅自换回经典单栏 */
+    state.layout = { fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard', tpl: tplId() };
+    renderEditor(); applyLayout(); syncLabels(); applyZoom(); checkOverflow(); save();
+    toast('字号 / 行距 / 模块距已恢复默认');
+    return;
+  }
+
+  /* 版式模板切换：只换骨架，字号 / 行距 / 主题都不动 */
+  if(btn.dataset.tpl){
+    state.layout.tpl = btn.dataset.tpl;
+    renderEditor(); applyLayout(); renderPreview(); applyZoom(); save();
+    toast('已切换版式：' + tplName(btn.dataset.tpl));
     return;
   }
 
@@ -1840,6 +2047,7 @@ function exportHtmlSource(){
   const m = state.meta;
   const L = state.layout || {};
   const t = themeOf(state.theme);
+  const tpl = tplId();
   const vars = [
     '--fs:' + (L.fs || 9.3) + 'pt',
     '--lh:' + (L.lh || 1.55),
@@ -1848,72 +2056,14 @@ function exportHtmlSource(){
     '--accent-deep:' + t.deep,
     '--accent-strong:' + t.strong,
     '--accent-bg:' + t.bg,
+    '--accent-line:' + t.accent + '3d',
     '--ink-main:' + t.ink,
     '--ink-sub:' + t.sub,
     '--ink-soft:' + t.soft
   ].join(';');
 
-  const out = [];
-  out.push('<h1 class="r-name">' + esc(m.name) + '</h1>');
-  if(m.jobTitle) out.push('<p class="r-title">求职意向：' + esc(m.jobTitle) + '</p>');
-  if(m.contact)  out.push('<p class="r-contact">' + richText(m.contact) + '</p>');
-  if(m.summary)  out.push('<p class="r-summary">' + richText(m.summary) + '</p>');
-
-  /* bullet 列表：隐藏的条目照旧不写进去（与预览、PDF 一致） */
-  const ulOf = list=>{
-    const on = (list || []).filter(b=> b.visible !== false);
-    if(!on.length) return '';
-    return '<ul class="r-ul">' + on.map(b=>
-      '<li>' + (b.label ? '<strong class="r-strong">' + esc(b.label) + '</strong>：' : '') + richText(b.text || '') + '</li>'
-    ).join('') + '</ul>';
-  };
-
-  state.order.forEach(id=>{
-    const mod = state.modules[id];
-    if(!mod || !mod.visible) return;
-    out.push('<h2 class="r-h2">' + esc(mod.title) + '</h2>');
-
-    if(mod.style === 'edu'){
-      (mod.items || []).forEach(it=>{
-        out.push('<p class="r-p">' + richText(it.text || '')
-          + (it.time ? ' ｜ <code class="r-code">' + esc(it.time) + '</code>' : '') + '</p>');
-      });
-    } else if(mod.style === 'project'){
-      (mod.items || []).forEach(it=>{
-        if(it.name) out.push('<h3 class="r-h3">' + esc(it.name) + '</h3>');
-        if(it.meta || it.stack){
-          const seg = [];
-          if(it.meta)  seg.push(richText(it.meta));
-          if(it.stack) seg.push('<span class="r-code">' + esc(it.stack) + '</span>');
-          /* 一个 p 里用 br 分两行：导入时按 br 拆成 meta / stack 两段，不会被误当成描述 */
-          out.push('<p class="r-meta">' + seg.join('<br>') + '</p>');
-        }
-        if(it.desc) out.push('<p class="r-desc">' + richText(it.desc) + '</p>');
-        const u = ulOf(it.bullets); if(u) out.push(u);
-      });
-    } else if(mod.style === 'intern'){
-      (mod.items || []).forEach(it=>{
-        const seg = [];
-        if(it.company) seg.push('<strong class="r-strong">' + esc(it.company) + '</strong>');
-        if(it.role) seg.push(esc(it.role));
-        if(it.time) seg.push('<code class="r-code">' + esc(it.time) + '</code>');
-        out.push('<p class="r-p">' + seg.join(' ｜ ') + '</p>');
-        const u = ulOf(it.bullets); if(u) out.push(u);
-      });
-    } else if(mod.style === 'list'){
-      const on = (mod.items || []).filter(it=> it.visible !== false);
-      if(on.length){
-        out.push('<ul class="r-ul">' + on.map(it=>
-          '<li>' + (it.label ? '<strong class="r-strong">' + esc(it.label) + '</strong>：' : '')
-          + richText(it.text || '') + '</li>'
-        ).join('') + '</ul>');
-      }
-    } else {
-      (mod.items || []).forEach(it=>{
-        out.push('<p class="r-p">' + richText(it.text || '') + '</p>');
-      });
-    }
-  });
+  /* 正文与右侧预览走同一个生成函数，版式不同也不会出现「预览一套、导出另一套」 */
+  const body = buildBody(tpl);
 
   const shortTitle = String(m.jobTitle || '').split(/[｜|]/)[0].trim();
   const docTitle = [m.name, shortTitle].filter(Boolean).join(' - ');
@@ -1921,8 +2071,9 @@ function exportHtmlSource(){
   return '<!doctype html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
     + '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
     + '<title>' + esc(docTitle || '简历') + '</title>\n'
-    + '<style>\n' + EXPORT_CSS + '\n</style>\n</head>\n<body>\n'
-    + '<main class="resume" style="' + vars + '">\n' + out.join('\n') + '\n</main>\n</body>\n</html>\n';
+    + '<style>\n' + EXPORT_CSS + '\n' + tplCss('.resume') + '\n</style>\n</head>\n<body>\n'
+    + '<main class="resume' + (tpl === 'classic' ? '' : ' tpl-' + tpl) + '" style="' + vars + '">\n'
+    + body + '\n</main>\n</body>\n</html>\n';
 }
 
 function exportHtml(){
@@ -1961,11 +2112,15 @@ function fitPdfPreview(){
   pdfModalWrapEl.style.height = Math.round(ph * s) + 'px';
 }
 
+/* A4 页面用到的全部 CSS 变量，克隆时必须整套搬过去（漏一个就会掉色 / 版式走形） */
+const PAGE_VARS = ['--fs','--lh','--gap','--accent','--accent-deep','--accent-strong','--accent-bg',
+  '--accent-line','--ink-main','--ink-sub','--ink-soft'];
+
 function openPdfPreview(){
-  /* 预览用的是一份克隆：尺寸、字号、主题变量照搬右侧 A4，改不到真实页面 */
+  /* 预览用的是一份克隆：尺寸、字号、主题变量、版式 class 都照搬右侧 A4，改不到真实页面 */
   pdfModalPageEl.innerHTML = pageEl.innerHTML;
-  ['--fs','--lh','--gap','--accent','--accent-deep','--accent-strong','--accent-bg',
-   '--ink-main','--ink-sub','--ink-soft'].forEach(v=>{
+  pdfModalPageEl.className = pageEl.className;             /* tpl-* 版式跟着走 */
+  PAGE_VARS.forEach(v=>{
     const val = pageEl.style.getPropertyValue(v);
     if(val) pdfModalPageEl.style.setProperty(v, val);
   });
@@ -1989,12 +2144,11 @@ function buildExportBox(){
   const stage = document.createElement('div');
   stage.style.cssText = 'background:#ffffff;margin:0;padding:0';
   const box = document.createElement('div');
-  box.className = 'page';
+  box.className = pageEl.className || 'page';   /* 带上 tpl-*，位图 PDF 才和预览同一版式 */
   /* 高度取 1122px（略小于 297mm=1122.5px），否则按宽铺满 A4 时会溢出半像素、多出一张空白页 */
   box.style.cssText = 'transform:none;box-shadow:none;margin:0;height:1122px;min-height:0;overflow:hidden';
   /* 把页面上的排版与主题变量带过来，否则新盒子用的是 CSS 默认值 */
-  ['--fs','--lh','--gap','--accent','--accent-deep','--accent-strong','--accent-bg',
-   '--ink-main','--ink-sub','--ink-soft'].forEach(v=>{
+  PAGE_VARS.forEach(v=>{
     const val = pageEl.style.getPropertyValue(v);
     if(val) box.style.setProperty(v, val);
   });
@@ -2145,7 +2299,7 @@ document.getElementById('fileImport').addEventListener('change', e=>{
       if(!s.meta || !s.modules || !s.order) throw new Error('结构不匹配');
       const keepKey = (state.ai && state.ai.key) || '';
       state = s;
-      state.layout = Object.assign({ fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard' }, state.layout || {});
+      state.layout = Object.assign({ fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard', tpl: 'classic' }, state.layout || {});
       if(!state.theme) state.theme = 'navy';
       state.ai = Object.assign({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
         key: '', jd: '', scope: 'all', systemPrompt: '' }, state.ai || {});
@@ -2240,16 +2394,29 @@ function parseResumeHtml(text){
       return;
     }
     if(tag === 'P'){
+      /* 摘要段可能排在模块之后（侧栏版式把摘要放主栏、技能放左栏），按 class 认出来，别落进模块条目里 */
+      if(/summary/.test(cls)){
+        const t = richTxt(el);
+        if(t) meta.summary = meta.summary ? (meta.summary + ' ' + t) : t;
+        return;
+      }
       if(mod.style === 'project'){
         const it = mod.items[mod.items.length - 1];
         if(!it) return;
         if(/proj-desc|desc/i.test(cls)){ it.desc = richTxt(el); return; }
+        /* 时间轴版式把时间藏在 code.tl-hide 里，这里取出来拼回 meta，导入才不丢时间 */
+        const tlCode = el.querySelector('code.tl-hide');
+        const tlTime = tlCode ? txt(tlCode) : '';
         if(!it.meta){
-          const ls = lines(el);
-          it.meta = ls[0] || '';
+          const c = el.cloneNode(true);
+          c.querySelectorAll('code').forEach(x=> x.remove());
+          const ls = lines(c);
+          const base = ls[0] || '';
+          it.meta = tlTime ? (tlTime + (base ? ' ｜ ' + base : '')) : base;
           if(ls[1]) it.stack = ls[1];
           return;
         }
+        if(!it.stack && el.querySelector('code') && !it.desc){ it.stack = txt(el); return; }
         if(!it.desc){ it.desc = richTxt(el); return; }
         return;
       }
