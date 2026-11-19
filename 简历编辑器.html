@@ -76,6 +76,39 @@ button{font-family:inherit;cursor:pointer}
 .panel-title{font-weight:700;font-size:12.5px;color:var(--ink);letter-spacing:.2px}
 .panel-body{padding:14px}
 
+/* 「设置」大板块里的子板块：不重复卡片边框，只用一条细分隔线分开 */
+.panel-sub{font-size:11px;color:#a3a8bd;letter-spacing:.3px}
+.sub{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.sub:first-child{border-top:0;padding-top:0;margin-top:0}
+.sub.collapsed .panel-body{display:none}
+.sub.collapsed .sub-head{padding-bottom:0}
+.sub-head{display:flex;align-items:center;gap:8px;padding-bottom:10px}
+.sub-title{font-size:12px;font-weight:700;color:var(--ink);letter-spacing:.2px}
+.sub.collapsed .sub-title{color:var(--sub)}
+.sub.collapsed #btnLayoutReset{display:none}
+/* 折叠按钮在白卡上太淡，给个浅底让它一眼看得见 */
+.panel-head .ico.fold,.sub-head .ico{width:22px;height:22px;background:#f3f3fa;color:#767c93;border-radius:6px}
+.panel-head .ico.fold:hover,.sub-head .ico:hover{background:var(--brand-soft);color:var(--brand)}
+
+/* 右栏直接拖拽排序：可拖元素 + 落点指示线 */
+#page [draggable="true"]{cursor:grab}
+#page [draggable="true"]:active{cursor:grabbing}
+#page .dragging{opacity:.38}
+#page .drop-before,#page .drop-after{position:relative}
+#page .drop-before::after,#page .drop-after::after{content:'';position:absolute;left:-4px;right:-4px;height:2px;
+  background:var(--brand);border-radius:2px}
+#page .drop-before::after{top:-2px}
+#page .drop-after::after{bottom:-2px}
+
+/* 拖拽时出现在列表末尾的投放条：拖到它上面 = 挪到最后 */
+#page .drop-end{margin:5pt 0 2pt;padding:5.5pt 8pt;border:1pt dashed var(--accent-line);border-radius:3pt;
+  background:var(--accent-bg);color:var(--ink-sub);font-size:calc(var(--fs) * .82);
+  line-height:1.35;letter-spacing:.5px;text-align:center;cursor:copy}
+#page .drop-end.drop-active{border-style:solid;border-color:var(--accent);background:var(--accent-bg);
+  color:var(--accent-strong);font-weight:700}
+#page .r-side .drop-end{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.12);color:rgba(255,255,255,.92)}
+#page .r-side .drop-end.drop-active{border-color:#fff;color:#fff;background:rgba(255,255,255,.22)}
+
 .field{margin-bottom:10px}
 .f-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px}
 .f-head label{margin-bottom:0!important}
@@ -254,11 +287,13 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
 .pv-bar .ok{color:var(--ok)}
 .pv-hint{font-size:11px;color:#a3a8bd;letter-spacing:.2px}
 
-/* 点右侧板块跳到左栏：模块卡闪一下；板块本身给一点可点的暗示 */
-.mod.hit{border-color:#c3b7f1;box-shadow:0 0 0 4px var(--brand-ring)}
-.mod{scroll-margin-top:12px}
+/* 点右侧板块 / 条目 / bullet 跳到左栏：目标卡闪一下 */
+.mod.hit,.item.hit,.bullet.hit,.panel.hit{border-color:#c3b7f1;box-shadow:0 0 0 4px var(--brand-ring)}
+.mod,.item,.bullet,.sub{scroll-margin-top:14px}
 #page .r-sec{cursor:pointer;transition:background .15s}
 #page .r-sec:hover{background:rgba(106,84,216,.05)}
+#page li{cursor:pointer}
+#page li:hover,#page h3:hover{background:rgba(106,84,216,.06)}
 .zoom{display:flex;align-items:center;gap:6px;background:#f4f4fa;border:1px solid var(--line);
   border-radius:999px;padding:3px 5px}
 .zoom .btn.sm{height:24px;border-radius:999px;background:transparent;border-color:transparent}
@@ -405,7 +440,7 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
     <div class="pv-bar">
       <span>A4 预览</span>
       <span id="pageState" class="ok">单页</span>
-      <span class="pv-hint">点简历里的板块 → 左栏跳到对应模块</span>
+      <span class="pv-hint">点简历里的板块 / 条目 / bullet → 左栏跳到对应位置；拖着上下挪 → 直接排序</span>
       <div class="spacer"></div>
       <div class="zoom">
         <button class="btn sm" id="zoomOut">−</button>
@@ -766,26 +801,18 @@ let aiResult = null;
 function renderEditor(){
   const keepTop = editorEl.scrollTop;      /* 重绘会重置滚动，先记下来再还原 */
   const wrap = [];
-  const L = state.layout || { fs: 9.3, lh: 1.55, gap: 10 };
 
-  /* --- 个人信息 --- */
-  wrap.push(`
-    <div class="panel ${isFold('p-meta') ? 'collapsed' : ''}" id="card-meta" data-panel="p-meta">
-      <div class="panel-head"><span class="panel-title">个人信息</span><div class="spacer"></div>${foldBtn('p-meta')}</div>
-      <div class="panel-body">
-        ${field('meta.name', '姓名', state.meta.name)}
-        ${field('meta.jobTitle', '求职意向（行尾可带到岗说明）', state.meta.jobTitle)}
-        ${contactRows()}
-        ${area('meta.summary', '个人摘要', state.meta.summary, 74)}
-      </div>
-    </div>
-  `);
-
-  /* --- 排版调节 --- */
-  wrap.push(`
-    <div class="panel ${isFold('p-layout') ? 'collapsed' : ''}" data-panel="p-layout">
-      <div class="panel-head">
-        <span class="panel-title">排版调节</span>
+  /* --- 设置（大板块，置顶）：排版调节 / 主题配色 / AI 对齐 JD 三个子板块 --- */
+  const L0 = state.layout || {};
+  const cur = themeOf(state.theme).id;
+  const A = state.ai;
+  const scopeOpts = [['all','整份简历（推荐）']].concat(
+    state.order.filter(id=> state.modules[id]).map(id=>[id, state.modules[id].title])
+  );
+  const layoutSub = `
+    <div class="sub ${isFold('p-layout') ? 'collapsed' : ''}" data-panel="p-layout">
+      <div class="sub-head">
+        <span class="sub-title">排版调节</span>
         <div class="spacer"></div>
         <button class="btn sm" id="btnLayoutReset">恢复默认</button>
         ${foldBtn('p-layout')}
@@ -797,37 +824,34 @@ function renderEditor(){
         </div>
         <div class="tpl-note">版式改的是版面骨架（抬头位置 / 分栏 / 时间列），与下面的间距预设、主题配色互不影响，可任意组合。</div>
         <div class="preset-row">
-          ${LAYOUT_PRESETS.map(p=> `<button class="preset-btn ${L.preset === p.id ? 'on' : ''}" data-preset="${p.id}" title="套用这套排版（只改字号 / 行距 / 模块距）">${p.name}<small>${p.hint}</small></button>`).join('')}
+          ${LAYOUT_PRESETS.map(p=> `<button class="preset-btn ${L0.preset === p.id ? 'on' : ''}" data-preset="${p.id}" title="套用这套排版（只改字号 / 行距 / 模块距）">${p.name}<small>${p.hint}</small></button>`).join('')}
         </div>
         <div class="slider-row">
           <label>正文字号</label>
-          <input type="range" min="8.2" max="11" step="0.1" data-path="layout.fs" value="${L.fs}">
-          <span class="val" id="valFs">${L.fs.toFixed(1)}pt</span>
+          <input type="range" min="8.2" max="11" step="0.1" data-path="layout.fs" value="${L0.fs}">
+          <span class="val" id="valFs">${L0.fs.toFixed(1)}pt</span>
         </div>
         <div class="slider-row">
           <label>行距</label>
-          <input type="range" min="1.3" max="1.95" step="0.05" data-path="layout.lh" value="${L.lh}">
-          <span class="val" id="valLh">${L.lh.toFixed(2)}</span>
+          <input type="range" min="1.3" max="1.95" step="0.05" data-path="layout.lh" value="${L0.lh}">
+          <span class="val" id="valLh">${L0.lh.toFixed(2)}</span>
         </div>
         <div class="slider-row">
           <label>模块间距</label>
-          <input type="range" min="4" max="20" step="0.5" data-path="layout.gap" value="${L.gap}">
-          <span class="val" id="valGap">${L.gap.toFixed(1)}pt</span>
+          <input type="range" min="4" max="20" step="0.5" data-path="layout.gap" value="${L0.gap}">
+          <span class="val" id="valGap">${L0.gap.toFixed(1)}pt</span>
         </div>
         <div class="slider-row">
           <label>左栏宽度</label>
-          <input type="range" min="320" max="760" step="10" data-path="layout.editorW" value="${L.editorW}">
-          <span class="val" id="valW">${L.editorW}px</span>
+          <input type="range" min="320" max="760" step="10" data-path="layout.editorW" value="${L0.editorW}">
+          <span class="val" id="valW">${L0.editorW}px</span>
         </div>
       </div>
-    </div>
-  `);
+    </div>`;
 
-  /* --- 主题配色 --- */
-  const cur = themeOf(state.theme).id;
-  wrap.push(`
-    <div class="panel ${isFold('p-theme') ? 'collapsed' : ''}" data-panel="p-theme">
-      <div class="panel-head"><span class="panel-title">主题配色</span><div class="spacer"></div>${foldBtn('p-theme')}</div>
+  const themeSub = `
+    <div class="sub ${isFold('p-theme') ? 'collapsed' : ''}" data-panel="p-theme">
+      <div class="sub-head"><span class="sub-title">主题配色</span><div class="spacer"></div>${foldBtn('p-theme')}</div>
       <div class="panel-body">
         <div class="themes">
           ${THEMES.map(t=> `
@@ -838,18 +862,12 @@ function renderEditor(){
         </div>
         <div class="ai-note">只换简历本体的强调色与线条色，正文字体、字号、排版不变。</div>
       </div>
-    </div>
-  `);
+    </div>`;
 
-  /* --- AI 对齐 JD --- */
-  const A = state.ai;
-  const scopeOpts = [['all','整份简历（推荐）']].concat(
-    state.order.filter(id=> state.modules[id]).map(id=>[id, state.modules[id].title])
-  );
-  wrap.push(`
-    <div class="panel ${isFold('p-ai') ? 'collapsed' : ''}" id="panelAi" data-panel="p-ai">
-      <div class="panel-head">
-        <span class="panel-title">AI 对齐 JD</span>
+  const aiSub = `
+    <div class="sub ${isFold('p-ai') ? 'collapsed' : ''}" id="panelAi" data-panel="p-ai">
+      <div class="sub-head">
+        <span class="sub-title">AI 对齐 JD</span>
         <div class="spacer"></div>
         <button class="btn sm" id="btnAiCfg">${aiCfgOpen ? '收起设置' : 'API 设置'}</button>
         ${foldBtn('p-ai')}
@@ -882,6 +900,34 @@ function renderEditor(){
         <button class="btn primary" id="btnAiRun" style="width:100%">生成修改建议</button>
         <div class="ai-note">只调措辞与侧重，不造事实：数字、项目、时间、技术栈都不会被新增或放大。建议采用前逐条看一遍。</div>
         <div id="aiResult"></div>
+      </div>
+    </div>`;
+
+  wrap.push(`
+    <div class="panel ${isFold('p-settings') ? 'collapsed' : ''}" data-panel="p-settings" id="panelSettings">
+      <div class="panel-head">
+        <span class="panel-title">设置</span>
+        <span class="panel-sub">版式 · 间距 · 配色 · AI</span>
+        <div class="spacer"></div>
+        ${foldBtn('p-settings')}
+      </div>
+      <div class="panel-body">
+        ${layoutSub}
+        ${themeSub}
+        ${aiSub}
+      </div>
+    </div>
+  `);
+
+  /* --- 个人信息 --- */
+  wrap.push(`
+    <div class="panel ${isFold('p-meta') ? 'collapsed' : ''}" id="card-meta" data-panel="p-meta">
+      <div class="panel-head"><span class="panel-title">个人信息</span><div class="spacer"></div>${foldBtn('p-meta')}</div>
+      <div class="panel-body">
+        ${field('meta.name', '姓名', state.meta.name)}
+        ${field('meta.jobTitle', '求职意向（行尾可带到岗说明）', state.meta.jobTitle)}
+        ${contactRows()}
+        ${area('meta.summary', '个人摘要', state.meta.summary, 74)}
       </div>
     </div>
   `);
@@ -924,8 +970,10 @@ function renderEditor(){
     </div>
     <div class="tip">
       拖 <b>⠿</b> 可调整模块顺序，拖动时会出现一条蓝色插入线告诉你落点；<b>◉</b> 切换模块显隐；<b>✕</b> 删模块；<b>✦</b> 让 AI 只对齐这一个模块；<b>▾ / ▸</b> 折叠编辑区。<br>
+      右边的简历也能直接拖：拖 <b>模块标题</b> 换板块顺序、拖 <b>一条经历 / 项目</b> 换条目顺序、拖 <b>某根 bullet</b> 换要点顺序，松手后左栏同步。轻轻点一下（不拖）则是跳转——点板块 / 条目 / bullet，左栏滚到对应位置并闪一下。<br>
       模块里的每条（项目 / 经历 / 教育 / 技能条目 / 段落）左侧都有 <b>⠿</b>；bullet 的 <b>⠿</b> 只在本条内调序。每根 bullet 右侧三个按钮：<b>◉</b> 在简历里隐藏 / 显示（隐藏的不进预览与 PDF）、<b>▾</b> 折叠这条、<b>✕</b> 删除。折叠后会留一行小字提醒这条写了什么。<br>
-      <b>版式</b>：经典单栏 / 横幅抬头 / 左侧深栏 / 时间轴 / 卡片分区五套，改的是<b>版面骨架</b>（抬头放哪、要不要分栏、时间贴哪一列、模块是否上底纹），不是字号间距的小修小补；五套都能和任意主题、任意间距预设自由组合，切换后预览、导出 HTML、PDF 三处一致。<br>
+      <b>设置</b>在最上面，里面三块都能单独折叠：<b>排版调节</b>（版式 + 间距预设 + 滑块）、<b>主题配色</b>、<b>AI 对齐 JD</b>。<br>
+      <b>版式</b>：经典单栏 / 横幅抬头 / 左侧深栏 / 时间轴四套，改的是<b>版面骨架</b>（抬头放哪、要不要分栏、时间贴哪一列），不是字号间距的小修小补；四套都能和任意主题、任意间距预设自由组合，切换后预览、导出 HTML、PDF 三处一致。<br>
       <b>排版</b>：4 套预设（标准 / 紧凑 / 舒展 / 疏朗）只改字号、行距、模块距，与上面的版式、下面的主题配色互相独立；也能继续用滑块微调，微调后预设标记为「自定义」。<br>
       内容会自动存到本机浏览器，关掉再打开还在。<br>
       <b>自定义加粗</b>：任何多行内容里选中一段字，点右侧 <b>B</b> 按钮即加粗；也可以手写 <b>**文字**</b>。预览、PDF 导出、截图都按加粗显示。<br>
@@ -982,9 +1030,11 @@ function syncRailActive(){
     const b = e.target.closest('[data-jump]');
     if(!b) return;
     if(b.dataset.jump === 'meta'){
+      const seq = ++jumpSeq;
       editorEl.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(()=>{ if(seq === jumpSeq && editorEl.scrollTop > 0) editorEl.scrollTop = 0; }, 900);
     }else{
-      jumpToModule(b.dataset.jump);
+      jumpToNode(b.dataset.jump, null, null);
     }
     railEl.querySelectorAll('.rail-btn').forEach(x=> x.classList.toggle('on', x === b));
   });
@@ -1522,11 +1572,12 @@ function splitTime(str){
   }
   return { time: '', rest: s };
 }
+/* 每根 bullet 记住自己在 bullets 里的原索引（data-bi），右栏点击 / 拖拽都靠它定位 */
 function ulHtml(list){
-  const on = (list || []).filter(b=> b.visible !== false);   /* 隐藏的 bullet 不进正文 */
+  const on = (list || []).map((b, bi)=>({ b, bi })).filter(x=> x.b.visible !== false);   /* 隐藏的 bullet 不进正文 */
   if(!on.length) return '';
-  return '<ul class="r-ul">' + on.map(b=>
-    '<li>' + (b.label ? '<strong class="r-strong">' + esc(b.label) + '</strong>：' : '') + richText(b.text || '') + '</li>'
+  return '<ul class="r-ul">' + on.map(x=>
+    '<li data-bi="' + x.bi + '" draggable="true">' + (x.b.label ? '<strong class="r-strong">' + esc(x.b.label) + '</strong>：' : '') + richText(x.b.text || '') + '</li>'
   ).join('') + '</ul>';
 }
 /* 时间轴的一格：左列时间、右列内容。时间同时在正文里留一份隐藏 code，导入时才不会丢 */
@@ -1534,18 +1585,21 @@ function tlWrap(time, inner){
   return '<div class="r-tl-item"><div class="r-tl-time">' + esc(time || '') + '</div>'
     + '<div class="r-tl-body">' + inner + '</div></div>';
 }
+/* 每个条目外面包一层 .r-item：它只是定位与拖拽用的空壳，不带任何样式，不影响原有间距 */
+const itemWrap = (i, inner) => '<div class="r-item" data-item="' + i + '" draggable="true">' + inner + '</div>';
+
 function modHtml(mod, tpl){
   const tl = tpl === 'timeline';
   let body = '';
 
   if(mod.style === 'edu'){
-    (mod.items || []).forEach(it=>{
+    (mod.items || []).forEach((it, i)=>{
       const code = it.time ? '<code class="r-code' + (tl ? ' tl-hide' : '') + '">' + esc(it.time) + '</code>' : '';
       const p = '<p class="r-p">' + richText(it.text || '') + (it.time ? (tl ? code : ' ｜ ' + code) : '') + '</p>';
-      body += tl ? tlWrap(it.time, p) : p;
+      body += tl ? tlWrap(it.time, itemWrap(i, p)) : itemWrap(i, p);
     });
   } else if(mod.style === 'project'){
-    (mod.items || []).forEach(it=>{
+    (mod.items || []).forEach((it, i)=>{
       const st = tl ? splitTime(it.meta) : { time: '', rest: it.meta || '' };
       let s = '';
       if(it.name) s += '<h3 class="r-h3">' + esc(it.name) + '</h3>';
@@ -1559,31 +1613,32 @@ function modHtml(mod, tpl){
       }
       if(it.desc)  s += '<p class="r-desc">' + richText(it.desc) + '</p>';
       s += ulHtml(it.bullets);
-      body += tl ? tlWrap(st.time, s) : s;
+      const inner = itemWrap(i, s);
+      body += tl ? tlWrap(st.time, inner) : inner;
     });
   } else if(mod.style === 'intern'){
-    (mod.items || []).forEach(it=>{
+    (mod.items || []).forEach((it, i)=>{
       let head = '<p class="r-p"><strong class="r-strong">' + esc(it.company || '') + '</strong>';
       if(it.role) head += ' ｜ ' + esc(it.role);
       if(it.time) head += tl ? '<code class="r-code tl-hide">' + esc(it.time) + '</code>'
                              : ' ｜ <code class="r-code">' + esc(it.time) + '</code>';
       head += '</p>';
-      const inner = head + ulHtml(it.bullets);
+      const inner = itemWrap(i, head + ulHtml(it.bullets));
       body += tl ? tlWrap(it.time, inner) : inner;
     });
   } else if(mod.style === 'list'){
-    const on = (mod.items || []).filter(it=> it.visible !== false);
-    if(on.length) body = '<ul class="r-ul">' + on.map(it=>
-      '<li>' + (it.label ? '<strong class="r-strong">' + esc(it.label) + '</strong>：' : '') + richText(it.text || '') + '</li>'
+    const on = (mod.items || []).map((it, i)=>({ it, i })).filter(x=> x.it.visible !== false);
+    if(on.length) body = '<ul class="r-ul">' + on.map(x=>
+      '<li data-item="' + x.i + '" draggable="true">' + (x.it.label ? '<strong class="r-strong">' + esc(x.it.label) + '</strong>：' : '') + richText(x.it.text || '') + '</li>'
     ).join('') + '</ul>';
   } else {
-    (mod.items || []).forEach(it=>{
-      body += '<p class="r-p">' + richText(it.text || '') + '</p>';
+    (mod.items || []).forEach((it, i)=>{
+      body += itemWrap(i, '<p class="r-p">' + richText(it.text || '') + '</p>');
     });
   }
 
   if(!body) return '';
-  return '<h2 class="r-h2">' + esc(mod.title) + '</h2>' + body;
+  return '<h2 class="r-h2" draggable="true">' + esc(mod.title) + '</h2>' + body;
 }
 function headParts(){
   const m = state.meta || {};
@@ -1625,30 +1680,284 @@ function renderPreview(){
   syncDocTitle();          /* 姓名 / 求职意向一改，浏览器标签页与打印默认文件名同步 */
 }
 
-/* ---------- 点右侧简历里的某个板块 → 左侧跳到对应模块 ----------
-   收起着的模块先展开（不然跳过去只有一个标题）；跳完短暂高亮一下，方便确认落在哪。
+/* ---------- 点右侧简历里的板块 / 条目 / bullet → 左侧跳到具体位置 ----------
+   收起着的模块先展开（不然跳过去只有一个标题），折叠的 bullet 也展开；跳完短暂高亮。
    平滑滚动若在 900ms 内完全没动静（部分环境会忽略 smooth），直接落到目标位置兜底。 */
-function jumpToModule(id){
-  if(!id || !state.modules[id]) return;
-  if(isFold('m-' + id)) toggleFold('m-' + id);     /* 内部已重绘左栏 */
-  const card = document.getElementById('card-' + id);
-  if(!card) return;
+let jumpSeq = 0;
+function jumpToNode(mid, i, bi){
+  if(!mid || !state.modules[mid]) return;
+  const seq = ++jumpSeq;                  /* 连点不同目标时，旧的那次兜底不再抢滚动 */
+  state.ui = state.ui || {};
+  let redraw = false;
+  /* 展开 = 把对应的折叠标记删掉，比连调两次 toggleFold 少闪一帧 */
+  if(isFold('m-' + mid)){ delete state.ui['f:m-' + mid]; redraw = true; }
+  if(i != null && bi != null && isFold('b:' + mid + ':' + i + ':' + bi)){
+    delete state.ui['f:b:' + mid + ':' + i + ':' + bi];
+    redraw = true;
+  }
+  if(redraw){ renderEditor(); save(); }
+  let el = document.getElementById('card-' + mid);
+  if(el && i != null){
+    el = el.querySelector('.mod-body [data-item="' + i + '"]') || el;
+    if(bi != null){
+      const b = el.querySelector('.bullet[data-bi="' + bi + '"]');
+      if(b) el = b;
+    }
+  }
+  if(!el) return;
   const before = editorEl.scrollTop;
-  const top = card.getBoundingClientRect().top - editorEl.getBoundingClientRect().top + before - 12;
+  const top = el.getBoundingClientRect().top - editorEl.getBoundingClientRect().top + before - 14;
   editorEl.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
   setTimeout(()=>{
+    if(seq !== jumpSeq) return;
     if(editorEl.scrollTop === before && Math.max(0, top) !== before) editorEl.scrollTop = Math.max(0, top);
   }, 900);
-  card.classList.remove('hit');
-  void card.offsetWidth;                            /* 断开动画，连点同一块也能再闪一次 */
-  card.classList.add('hit');
-  setTimeout(()=> card.classList.remove('hit'), 1600);
+  el.classList.remove('hit');
+  void el.offsetWidth;                              /* 断开动画，连点同一块也能再闪一次 */
+  el.classList.add('hit');
+  setTimeout(()=> el.classList.remove('hit'), 1600);
 }
+
+/* 解析一个预览元素指向哪里：模块 / 条目 / bullet 三级 */
+function targetOf(el){
+  const sec = el.closest('[data-sec]');
+  if(!sec) return null;
+  const mid = sec.getAttribute('data-sec');
+  const bullet = el.closest('[data-bi]');
+  const item = el.closest('[data-item]');
+  return {
+    mid,
+    i: item ? Number(item.getAttribute('data-item')) : null,
+    bi: bullet ? Number(bullet.getAttribute('data-bi')) : null
+  };
+}
+
 pageEl.addEventListener('click', e=>{
-  const sec = e.target.closest('[data-sec]');
-  if(!sec) return;
-  jumpToModule(sec.getAttribute('data-sec'));
+  const t = targetOf(e.target);
+  if(t) jumpToNode(t.mid, t.i, t.bi);
 });
+
+/* ---------- 右边直接拖：模块 / 条目 / bullet 三级，松手后左栏跟着变 ----------
+   拖动时在目标上方或下方画一条插入线；落点按鼠标在目标垂直中线的前后判断。 */
+let dragCtx = null;
+
+const dragKindOf = el => {
+  if(el.matches('h2.r-h2')) return 'mod';
+  if(el.matches('li[data-bi]')) return 'bullet';
+  if(el.matches('[data-item]')) return 'item';
+  return null;
+};
+
+pageEl.addEventListener('dragstart', e=>{
+  const h = e.target.closest('h2.r-h2, li[data-bi], [data-item]');
+  if(!h) return;
+  const kind = dragKindOf(h);
+  if(!kind) return;
+  const t = targetOf(h);
+  if(!t) return;
+  dragCtx = Object.assign({ kind, el: h }, t);
+  h.classList.add('dragging');
+  try{ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', kind); }catch(_){}
+  addDropEnd();        /* 列表末尾放一条「拖到这里 = 放到最后」的投放条 */
+});
+
+function clearDropMarks(){
+  pageEl.querySelectorAll('.drop-before,.drop-after,.drop-active').forEach(x=>{
+    x.classList.remove('drop-before','drop-after','drop-active');
+  });
+}
+
+const secOf = mid => pageEl.querySelector('[data-sec="' + mid + '"]');
+const itemOf = (mid, i) => {
+  const sec = secOf(mid);
+  return sec ? sec.querySelector('[data-item="' + i + '"]') : null;
+};
+
+/* 投放条只在拖拽期间存在：拖到它上面，就把东西挪到这一级的最后 */
+function addDropEnd(){
+  removeDropEnd();
+  if(!dragCtx) return;
+  const d = document.createElement('div');
+  d.className = 'drop-end';
+  d.textContent = '拖到这里 → 放到最后';
+  let host = null;
+  if(dragCtx.kind === 'mod') host = pageEl;
+  else if(dragCtx.kind === 'item') host = secOf(dragCtx.mid);
+  else host = itemOf(dragCtx.mid, dragCtx.i);
+  if(!host) return;
+  host.appendChild(d);
+  dragCtx.endEl = d;
+}
+function removeDropEnd(){
+  pageEl.querySelectorAll('.drop-end').forEach(d=> d.remove());
+  if(dragCtx) dragCtx.endEl = null;
+}
+
+/* 这个元素能不能接住当前拖的东西；能接就返回落点（落在目标之前 / 之后） */
+function acceptTarget(el, y){
+  if(!dragCtx || !el) return null;
+  if(el === dragCtx.el || el.contains(dragCtx.el)) return null;
+  const kind = dragKindOf(el);
+  if(kind !== dragCtx.kind) return null;
+  const t = targetOf(el);
+  if(!t) return null;
+  /* 只接受同一层级的落点：模块对模块（跨模块才算换位）、条对条、bullet 对同一条目里的 bullet */
+  if(kind === 'mod'){
+    if(t.mid === dragCtx.mid) return null;
+  } else {
+    if(t.mid !== dragCtx.mid) return null;
+    if(kind === 'bullet' && (t.i !== dragCtx.i || t.bi === dragCtx.bi)) return null;
+  }
+  const box = el.getBoundingClientRect();
+  return { el, t, after: y > box.top + box.height / 2 };
+}
+
+/* 落在缝隙、模块之间、纸面下方这类空白处时，按鼠标高度找最近的同类位置 */
+function nearestByY(y){
+  const kind = dragCtx.kind;
+  if(kind === 'mod'){
+    const secs = Array.from(pageEl.querySelectorAll('[data-sec]'));
+    for(const s of secs){
+      const h2 = s.querySelector('h2.r-h2');
+      if(!h2) continue;
+      if(y < h2.getBoundingClientRect().bottom) return acceptTarget(h2, y);
+    }
+    const lastH2 = secs.length ? secs[secs.length - 1].querySelector('h2.r-h2') : null;
+    return lastH2 ? acceptTarget(lastH2, 1e6) : null;
+  }
+  if(kind === 'item'){
+    const sec = secOf(dragCtx.mid);
+    if(!sec) return null;
+    const items = Array.from(sec.querySelectorAll('[data-item]'));
+    for(const it of items){
+      if(y < it.getBoundingClientRect().bottom) return acceptTarget(it, y);
+    }
+    return items.length ? acceptTarget(items[items.length - 1], 1e6) : null;
+  }
+  const item = itemOf(dragCtx.mid, dragCtx.i);
+  if(!item) return null;
+  const lis = Array.from(item.querySelectorAll('li[data-bi]'));
+  for(const li of lis){
+    if(y < li.getBoundingClientRect().bottom) return acceptTarget(li, y);
+  }
+  return lis.length ? acceptTarget(lis[lis.length - 1], 1e6) : null;
+}
+
+function markDrop(hit){
+  clearDropMarks();
+  hit.el.classList.add(hit.after ? 'drop-after' : 'drop-before');
+  dragCtx.dropEl = hit.el;
+  dragCtx.dropTarget = hit.t;
+  dragCtx.dropAfter = hit.after;
+  dragCtx.dropEnd = false;
+}
+function markEnd(el){
+  clearDropMarks();
+  if(el) el.classList.add('drop-active');
+  dragCtx.dropEnd = true;
+  dragCtx.dropTarget = null;
+  dragCtx.dropEl = null;
+}
+
+pageEl.addEventListener('dragover', e=>{
+  if(!dragCtx) return;
+  const endEl = e.target.closest ? e.target.closest('.drop-end') : null;
+  if(endEl){
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    markEnd(endEl);
+    return;
+  }
+  let hit = acceptTarget(e.target.closest ? e.target.closest('h2.r-h2, li[data-bi], [data-item]') : null, e.clientY);
+  if(!hit) hit = nearestByY(e.clientY);       /* 行间缝隙、模块之间、纸面下方：按高度兜底 */
+  if(!hit) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  markDrop(hit);
+});
+
+pageEl.addEventListener('dragleave', e=>{
+  if(!dragCtx) return;
+  if(e.relatedTarget && pageEl.contains(e.relatedTarget)) return;
+  clearDropMarks();
+});
+
+function commitDrop(){
+  if(!dragCtx) return false;
+  const { kind, mid } = dragCtx;
+  const m = state.modules[mid];
+  if(dragCtx.dropEnd){                        /* 置底：直接挪到这一级的最后 */
+    if(kind === 'mod'){
+      const from = state.order.indexOf(mid);
+      const last = state.order.length - 1;
+      return from >= 0 && from !== last ? moveInArray(state.order, from, last, true) : false;
+    }
+    if(kind === 'item'){
+      if(!m || !m.items) return false;
+      return dragCtx.i !== m.items.length - 1 ? moveInArray(m.items, dragCtx.i, m.items.length - 1, true) : false;
+    }
+    const it = m && m.items && m.items[dragCtx.i];
+    if(!it || !it.bullets) return false;
+    return dragCtx.bi !== it.bullets.length - 1 ? moveInArray(it.bullets, dragCtx.bi, it.bullets.length - 1, true) : false;
+  }
+  const target = dragCtx.dropTarget;
+  if(!target) return false;
+  const after = !!dragCtx.dropAfter;
+  if(kind === 'mod') return moveInArray(state.order, state.order.indexOf(mid), state.order.indexOf(target.mid), after);
+  if(kind === 'item') return m ? moveInArray(m.items, dragCtx.i, target.i, after) : false;
+  const it = m && m.items && m.items[dragCtx.i];
+  return it ? moveInArray(it.bullets, dragCtx.bi, target.bi, after) : false;
+}
+
+pageEl.addEventListener('drop', e=>{
+  if(!dragCtx) return;
+  e.preventDefault();
+  const changed = commitDrop();
+  finishDrag();
+  if(changed){ renderEditor(); renderPreview(); save(); }
+});
+
+/* 拖到纸面外面的空白处（A4 页下方）：也当作「放到最后」 */
+const pvArea = document.getElementById('pvScroll');
+if(pvArea){
+  pvArea.addEventListener('dragover', e=>{
+    if(!dragCtx || pageEl.contains(e.target)) return;
+    if(dragCtx.kind !== 'mod') return;
+    if(!dragCtx.endEl) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    markEnd(dragCtx.endEl);
+  });
+  pvArea.addEventListener('drop', e=>{
+    if(!dragCtx || pageEl.contains(e.target)) return;
+    if(dragCtx.kind !== 'mod' || !dragCtx.endEl) return;
+    e.preventDefault();
+    markEnd(dragCtx.endEl);
+    const changed = commitDrop();
+    finishDrag();
+    if(changed){ renderEditor(); renderPreview(); save(); }
+  });
+}
+
+pageEl.addEventListener('dragend', finishDrag);
+
+function finishDrag(){
+  if(dragCtx && dragCtx.el) dragCtx.el.classList.remove('dragging');
+  clearDropMarks();
+  removeDropEnd();
+  dragCtx = null;
+}
+
+/* 把 from 处的元素移到 target 的位置（after = 落在目标之后） */
+function moveInArray(arr, from, target, after){
+  if(!arr || from == null || target == null || from === target) return false;
+  if(from < 0 || from >= arr.length || target < 0 || target >= arr.length) return false;
+  let insert = target + (after ? 1 : 0);
+  if(from < insert) insert -= 1;
+  const item = arr.splice(from, 1)[0];
+  arr.splice(insert, 0, item);
+  return true;
+}
 
 /* 把排版参数写到 CSS 变量上 */
 function applyLayout(){
@@ -2102,8 +2411,11 @@ function exportHtmlSource(){
     '--ink-soft:' + t.soft
   ].join(';');
 
-  /* 正文与右侧预览走同一个生成函数，版式不同也不会出现「预览一套、导出另一套」 */
-  const body = buildBody(tpl);
+  /* 正文与右侧预览走同一个生成函数，版式不同也不会出现「预览一套、导出另一套」；
+     导出前把只在编辑器里用的定位/拖拽属性摘掉，存出来的 HTML 保持干净 */
+  const body = buildBody(tpl)
+    .replace(/ draggable="true"/g, '')
+    .replace(/ data-(sec|item|bi)="[^"]*"/g, '');
 
   const shortTitle = String(m.jobTitle || '').split(/[｜|]/)[0].trim();
   const docTitle = [m.name, shortTitle].filter(Boolean).join(' - ');
