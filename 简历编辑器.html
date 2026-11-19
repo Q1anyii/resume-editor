@@ -248,6 +248,23 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
 #page strong{font-weight:700;color:var(--accent-strong)}
 .r-a{color:var(--accent);text-decoration:none}
 
+/* 导出前预览弹窗 */
+.modal{position:fixed;inset:0;z-index:30;background:rgba(16,28,45,.55);
+  display:flex;align-items:center;justify-content:center}
+.modal[hidden]{display:none}
+.modal-box{width:min(1080px,94vw);height:min(92vh,1320px);background:#f7f9fc;border-radius:12px;
+  box-shadow:0 24px 60px rgba(10,25,45,.42);display:flex;flex-direction:column;overflow:hidden}
+.modal-head{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid #d8e0ec;background:#fff}
+.modal-head b{font-size:14px;color:#1a1a1a}
+.modal-head .st{font-size:12px;color:#1f7a4d}
+.modal-head .st.bad{color:#c0392b}
+.modal-stage{flex:1;overflow:auto;padding:18px;display:flex;justify-content:center;align-items:flex-start}
+.modal-wrap{position:relative;overflow:hidden;flex:0 0 auto}
+.modal-wrap .page{position:absolute;left:0;top:0;transform-origin:top left;margin:0;
+  box-shadow:0 4px 18px rgba(30,50,80,.18)}
+.modal-foot{display:flex;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid #d8e0ec;background:#fff}
+.modal-tip{flex:1;font-size:12px;color:#5b6b80;line-height:1.55}
+
 /* 提示条 */
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
   background:#17324d;color:#fff;font-size:12.5px;padding:9px 16px;border-radius:8px;opacity:0;
@@ -286,8 +303,29 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
   <button class="btn" id="btnImportHtml" title="读取已有简历 HTML，解析成可编辑的模块">导入 HTML</button>
   <input type="file" id="fileHtml" class="file-input" accept=".html,.htm,text/html">
   <button class="btn" id="btnExportHtml" title="导出一份干净的简历 HTML：可直接打开、可投递，也能再被本工具导入">导出 HTML</button>
-  <button class="btn" id="btnImgPdf" title="生成位图 PDF，文件小但放大略糊">图像版 PDF</button>
-  <button class="btn primary" id="btnPdf" title="调用系统打印，输出矢量 PDF，文字可选中、清晰">导出 PDF</button>
+  <button class="btn" id="btnImgPdf" title="用系统打印输出矢量 PDF：文字可选中、可被 ATS 解析">打印 · 矢量</button>
+  <button class="btn primary" id="btnPdf" title="先大窗预览，确认后直接生成 PDF 文件（不弹打印窗口）">导出 PDF</button>
+</div>
+
+<!-- ===== 导出前预览弹窗 ===== -->
+<div class="modal" id="pdfModal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <b>导出前预览</b>
+      <span class="st" id="pdfModalState">单页</span>
+      <span style="font-size:12px;color:#5b6b80">A4 · 210 × 297mm</span>
+    </div>
+    <div class="modal-stage" id="pdfModalStage">
+      <div class="modal-wrap" id="pdfModalWrap">
+        <div class="page" id="pdfModalPage"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="modal-tip">确认后直接生成 PDF 文件（约 240dpi），不弹打印窗口；这份是位图，文字不可选中。需要可被 ATS 解析的矢量版，用「打印 · 矢量」。</span>
+      <button class="btn ghost" id="pdfCancel">取消</button>
+      <button class="btn primary" id="pdfConfirm">确认导出 PDF</button>
+    </div>
+  </div>
 </div>
 
 <div class="main">
@@ -729,7 +767,8 @@ function renderEditor(){
       <b>自定义加粗</b>：任何多行内容里选中一段字，点右侧 <b>B</b> 按钮即加粗；也可以手写 <b>**文字**</b>。预览、PDF 导出、截图都按加粗显示。<br>
       <b>AI 对齐 JD</b>：填 Base URL / 模型 / Key，粘贴 JD，点「生成修改建议」，逐条采用即可。建议列表在框内滚动，不会把面板撑长。Key 只存在这台电脑，请求直连你填的端点，不经中转；<b>导出配置不含 Key</b>。<br>
       <b>导出 HTML</b>：把当前内容存成一份干净的简历网页——样式按当前字号 / 行距 / 主题一起写进去，双击就能看、可以直接当附件发；日后用「导入 HTML」还能读回来接着改。<br>
-      <b>导出 PDF</b>：点右上角按钮 → 打印窗口里「目标」选 <b>另存为 PDF</b>、纸张 A4、边距「无」，得到矢量 PDF（文字可选中）。<br>
+      <b>导出 PDF</b>：点右上角按钮 → 先弹大窗口看整页效果，确认后直接生成 PDF 文件（约 240dpi，不弹打印窗口）。<br>
+      <b>打印 · 矢量</b>：要文字可选中、能被 ATS 解析的版本 → 打印窗口里「目标」选 <b>另存为 PDF</b>、纸张 A4、边距「无」。<br>
       右侧顶部若显示 <b>「超出 1 页」</b>，说明撑破了 A4，需精简几条 bullet 或换「紧凑」预设。
     </div>
   `);
@@ -1701,7 +1740,7 @@ function applyZoom(){
 document.getElementById('zoomIn').onclick = ()=>{ fitMode = false; zoom = Math.min(1.6, zoom + 0.1); applyZoom(); };
 document.getElementById('zoomOut').onclick = ()=>{ fitMode = false; zoom = Math.max(0.4, zoom - 0.1); applyZoom(); };
 document.getElementById('zoomFit').onclick = ()=>{ fitMode = true; applyZoom(); };
-window.addEventListener('resize', ()=> applyZoom());
+window.addEventListener('resize', ()=>{ applyZoom(); fitPdfPreview(); });
 
 /* =====================================================================
    8. 导出 / 导入 / 打印
@@ -1844,11 +1883,50 @@ function exportHtml(){
   toast('已导出 HTML（能直接打开，也能再导入本工具继续改）');
 }
 
-/* 主路径：系统打印 → 矢量 PDF（文字可选中、放大不糊） */
+/* 打印路径：系统打印 → 矢量 PDF（文字可选中、可被 ATS 解析） */
 function exportPdf(){
   toast('打印窗口已打开：目标选「另存为 PDF」，纸张 A4，边距选「无」');
   setTimeout(()=> window.print(), 340);
 }
+
+/* ============ 导出前预览：大窗口确认，再生成 PDF ============ */
+const pdfModalEl = document.getElementById('pdfModal');
+const pdfModalPageEl = document.getElementById('pdfModalPage');
+const pdfModalWrapEl = document.getElementById('pdfModalWrap');
+
+function fitPdfPreview(){
+  if(pdfModalEl.hidden) return;
+  const stage = document.getElementById('pdfModalStage');
+  const pw = pdfModalPageEl.offsetWidth || 794;
+  const ph = pdfModalPageEl.offsetHeight || 1122;
+  const availW = Math.max(240, stage.clientWidth - 36);
+  const availH = Math.max(240, stage.clientHeight - 36);
+  const s = Math.min(availW / pw, availH / ph, 1.8);
+  pdfModalPageEl.style.transform = 'scale(' + s + ')';
+  pdfModalWrapEl.style.width = Math.round(pw * s) + 'px';
+  pdfModalWrapEl.style.height = Math.round(ph * s) + 'px';
+}
+
+function openPdfPreview(){
+  /* 预览用的是一份克隆：尺寸、字号、主题变量照搬右侧 A4，改不到真实页面 */
+  pdfModalPageEl.innerHTML = pageEl.innerHTML;
+  ['--fs','--lh','--gap','--accent','--accent-deep','--accent-strong','--accent-bg',
+   '--ink-main','--ink-sub','--ink-soft'].forEach(v=>{
+    const val = pageEl.style.getPropertyValue(v);
+    if(val) pdfModalPageEl.style.setProperty(v, val);
+  });
+  const st = document.getElementById('pdfModalState');
+  const src = document.getElementById('pageState');
+  st.textContent = src ? src.textContent : '单页';
+  st.className = 'st' + (src && src.classList.contains('ok') ? '' : ' bad');
+  pdfModalEl.hidden = false;
+  fitPdfPreview();
+}
+
+function closePdfPreview(){ pdfModalEl.hidden = true; }
+
+pdfModalEl.addEventListener('mousedown', e=>{ if(e.target === pdfModalEl) closePdfPreview(); });
+document.addEventListener('keydown', e=>{ if(e.key === 'Escape' && !pdfModalEl.hidden) closePdfPreview(); });
 
 /* 复制一份干净的 A4 页面到独立舞台（供位图导出与自测共用）：
    html2canvas 对 position:fixed 的克隆元素裁剪会错位（导出成左侧窄条、其余空白），
@@ -1872,7 +1950,7 @@ function buildExportBox(){
   /* 只在文档流里放这一个 A4 盒子：body 改成 block（页面可能是 flex 居中，会让克隆体在
      html2canvas 的宽视口副本里被推偏），顶栏与主体先隐藏，渲染完再恢复 */
   const hides = [document.querySelector('.topbar'), document.querySelector('.main'),
-                 document.getElementById('toast')];
+                 document.getElementById('toast'), document.getElementById('pdfModal')];
   const prev = hides.map(el=> el ? el.style.display : null);
   const bodyPrev = document.body.style.display;
   const bodyMarginPrev = document.body.style.margin;
@@ -1890,8 +1968,8 @@ function buildExportBox(){
   return { stage, box, restore };
 }
 
-/* 备选：位图 PDF（快，但放大略糊）。自己拼 html2canvas + jsPDF，
-   不用 html2pdf 的容器：容器会把 A4 盒按页宽重排，取景就偏。 */
+/* 主路径：先大窗预览，确认后直接生成 PDF 文件（不弹打印窗口）。
+   自己拼 html2canvas + jsPDF，不用 html2pdf 的容器：容器会把 A4 盒按页宽重排，取景就偏。 */
 function exportImgPdf(){
   const hasLib = typeof html2canvas !== 'undefined' && window.jspdf && window.jspdf.jsPDF;
   if(!hasLib){
@@ -1899,13 +1977,17 @@ function exportImgPdf(){
     setTimeout(()=> window.print(), 200);
     return;
   }
-  const btn = document.getElementById('btnImgPdf');
+  const btn = document.getElementById('pdfConfirm');
   const old = btn.textContent;
   btn.disabled = true; btn.textContent = '生成中…';
 
   const { box, restore } = buildExportBox();
 
-  const done = ()=>{ restore(); btn.disabled = false; btn.textContent = old; };
+  const done = close=>{
+    restore();
+    btn.disabled = false; btn.textContent = old;
+    if(close) closePdfPreview();
+  };
 
   const run = async ()=>{
     try{
@@ -1918,7 +2000,8 @@ function exportImgPdf(){
       const y = Math.round(r.top + window.scrollY);
 
       const canvas = await html2canvas(box, {
-        scale: 2, useCORS: true, backgroundColor: '#ffffff',
+        /* 2.5 倍 ≈ 240dpi；3 倍 ≈ 288dpi。取 2.5 是清晰度与生成耗时的折中 */
+        scale: 2.5, useCORS: true, backgroundColor: '#ffffff',
         x: x, y: y, width: w, height: h,
         scrollX: 0, scrollY: 0,
         windowWidth: Math.max(document.documentElement.clientWidth, x + w + 4),
@@ -1952,11 +2035,12 @@ function exportImgPdf(){
         }
       }
 
-      pdf.save((state.meta.name || '简历') + '-' + (state.meta.jobTitle || '') + '.pdf');
-      done();
+      const pos = String(state.meta.jobTitle || '').split(/[｜|]/)[0].trim();
+      pdf.save([state.meta.name || '简历', pos].filter(Boolean).join('-') + '.pdf');
+      done(true);
     }catch(err){
-      console.error(err); done();
-      toast('导出失败，请改用「打印」另存为 PDF');
+      console.error(err); done(false);
+      toast('导出失败，请改用「打印 · 矢量」另存为 PDF');
     }
   };
 
@@ -1967,8 +2051,10 @@ function exportImgPdf(){
   }
 }
 
-document.getElementById('btnPdf').onclick = exportPdf;
-document.getElementById('btnImgPdf').onclick = exportImgPdf;
+document.getElementById('btnPdf').onclick = openPdfPreview;
+document.getElementById('btnImgPdf').onclick = exportPdf;
+document.getElementById('pdfCancel').onclick = closePdfPreview;
+document.getElementById('pdfConfirm').onclick = ()=> exportImgPdf();
 
 document.getElementById('btnReset').onclick = ()=>{
   if(!confirm('恢复默认内容？当前编辑会被覆盖。')) return;
