@@ -167,6 +167,11 @@ button{font-family:inherit;cursor:pointer}
 .dchg-acts .btn.sm{flex:1}
 .ai-notes{font-size:10.5px;color:#8a6a1f;background:#fffaeb;border:1px solid #f4e5b4;
   border-radius:9px;padding:8px 10px;line-height:1.6;margin-bottom:10px}
+/* AI 面板里的行内 markdown：这一块不在 .page 作用域，--fs/--accent-bg 取不到，单独给一套 */
+.dchg-old strong,.dchg-new strong,.ai-notes strong{font-weight:700;color:#2f2a63}
+.dchg-old .r-code,.dchg-new .r-code,.ai-notes .r-code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;
+  font-size:inherit;background:rgba(106,84,216,.10);color:#4c3cae;padding:1px 3px;border-radius:3px;font-weight:600}
+.dchg-old .r-a,.dchg-new .r-a,.ai-notes .r-a{color:#4c3cae;text-decoration:underline;text-underline-offset:1px}
 
 /* 模块卡 */
 .mod{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;transition:.16s;
@@ -775,12 +780,25 @@ function linkify(text){
   out += esc(s.slice(last));
   return out;
 }
-function richText(text){
-  /* **加粗** 标记：可对任意片段自定义加粗；其余照旧识别链接 */
+/* 行内 markdown：**加粗**、`代码`、[文字](链接)，其余片段交给 linkify 自动识别裸链接。
+   简历正文只用到行内语法（块级结构由模块负责），所以不解析标题 / 列表 / 换行，
+   避免把正文里偶然出现的 * 或 # 当成格式，改了排版 */
+function mdInline(text){
   const s = String(text == null ? "" : text);
-  const parts = s.split(/\*\*(.+?)\*\*/g);
-  if(parts.length === 1) return linkify(s);
-  return parts.map((p, i)=> i % 2 ? "<strong>" + linkify(p) + "</strong>" : linkify(p)).join("");
+  const re = /\*\*([^*]+?)\*\*|`([^`]+?)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  let out = "", last = 0, m;
+  while((m = re.exec(s))){
+    out += linkify(s.slice(last, m.index));
+    if(m[1] != null)      out += "<strong>" + linkify(m[1]) + "</strong>";
+    else if(m[2] != null) out += '<code class="r-code">' + esc(m[2]) + "</code>";
+    else                  out += '<a class="r-a" href="' + esc(m[4]) + '" target="_blank" rel="noopener">' + esc(m[3]) + "</a>";
+    last = m.index + m[0].length;
+  }
+  out += linkify(s.slice(last));
+  return out;
+}
+function richText(text){
+  return mdInline(text);
 }
 function toast(msg){
   const el = document.getElementById('toast');
@@ -1219,8 +1237,9 @@ const AI_SYSTEM = [
   '6. 只用 JD 原文出现过的能力词来对齐措辞。JD 有、简历没有的能力不许塞进简历，改在 notes 里提示面试需要准备什么。',
   '7. 技术栈字段只能在已有条目之间重排顺序，不得加入新框架。',
   '8. 输出要完整可解析：整份简历最多输出 12 条 changes，优先个人摘要，其次是 JD 最看重的项目 bullet 与技能行；其余不足放进 notes。任何一条 newText 不超过 110 个汉字。',
+  '9. newText 里保留原文已有的行内 markdown：**加粗** 与反引号代码片段（如 `node --check`）必须原样留在相同位置，不要剥掉星号、不要把 ** 换成别的符号、不要在标记内侧加空格；原文没有的标记不要新增。notes 里同样可以用 **加粗** 强调关键词。',
   '',
-  '【输出】只输出一个 JSON 对象，不要 markdown 代码块，不要任何解释文字：',
+  '【输出】只输出一个 JSON 对象（整份回答不要用 ``` 包起来；字段内部的行内 **加粗** 与 `代码` 是允许的），不要任何解释文字：',
   '{"changes":[{"path":"原样复制输入的 path","newText":"改写后的完整文本","reason":"不超过20字"}],"notes":["不超过30字的提示"]}',
   '没有把握的字段不要放进 changes；changes 可以是空数组。'
 ].join('\n');
@@ -1409,7 +1428,7 @@ function renderAiResult(){
 
   let h = '';
   if(aiResult.notes && aiResult.notes.length){
-    h += '<div class="ai-notes"><b>面试要准备的缺口</b><br>' + aiResult.notes.map(esc).join('<br>') + '</div>';
+    h += '<div class="ai-notes"><b>面试要准备的缺口</b><br>' + aiResult.notes.map(mdInline).join('<br>') + '</div>';
   }
   if(!aiResult.changes.length){
     h += '<div class="ai-note">没有可应用的改动。</div>';
@@ -1423,8 +1442,8 @@ function renderAiResult(){
     <div class="dchg">
       <div class="dchg-head"><span class="dchg-tag">${esc(c.label)}</span>
         <span class="dchg-reason">${esc(c.reason || '')}</span></div>
-      <div class="dchg-old">${esc(c.oldText)}</div>
-      <div class="dchg-new">${esc(c.newText)}</div>
+      <div class="dchg-old">${mdInline(c.oldText)}</div>
+      <div class="dchg-new">${mdInline(c.newText)}</div>
       <div class="dchg-acts">
         <button class="btn sm primary" data-dchg="${i}">采用</button>
         <button class="btn sm" data-dchg="${i}" data-skip="1">忽略</button>
