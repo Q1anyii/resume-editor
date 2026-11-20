@@ -290,10 +290,19 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
 /* 点右侧板块 / 条目 / bullet 跳到左栏：目标卡闪一下 */
 .mod.hit,.item.hit,.bullet.hit,.panel.hit{border-color:#c3b7f1;box-shadow:0 0 0 4px var(--brand-ring)}
 .mod,.item,.bullet,.sub{scroll-margin-top:14px}
-#page .r-sec{cursor:pointer;transition:background .15s}
-#page .r-sec:hover{background:rgba(106,84,216,.05)}
-#page li{cursor:pointer}
-#page li:hover,#page h3:hover{background:rgba(106,84,216,.06)}
+/* 悬停高亮只在屏幕上生效。打印/导出时鼠标可能正好停在纸面上，hover 会被一起打进 PDF，
+   表现为整块淡紫底 —— 这类底色不该出现在投递件里，所以在打印媒介下直接不存在这条规则 */
+@media screen{
+  #page .r-sec{cursor:pointer;transition:background .15s}
+  #page .r-sec:hover{background:rgba(106,84,216,.05)}
+  #page li{cursor:pointer}
+  #page li:hover,#page h3:hover{background:rgba(106,84,216,.06)}
+}
+/* 位图导出（html2canvas 克隆）期间冻结纸面：指针进不来，且任何悬停底色强制透明 */
+body.printing #page{pointer-events:none}
+body.printing #page .r-sec,body.printing #page .r-sec:hover,
+body.printing #page li,body.printing #page li:hover,
+body.printing #page h3,body.printing #page h3:hover{background:transparent!important}
 .zoom{display:flex;align-items:center;gap:6px;background:#f4f4fa;border:1px solid var(--line);
   border-radius:999px;padding:3px 5px}
 .zoom .btn.sm{height:24px;border-radius:999px;background:transparent;border-color:transparent}
@@ -383,6 +392,9 @@ body.sorting .handle,body.sorting .ihandle,body.sorting .bhandle{cursor:grabbing
   .pv-scroll{padding:0;overflow:visible;display:block;cursor:auto}
   .page-wrap{transform:none!important;width:auto!important;height:auto!important;margin:0!important}
   .page{position:static!important;transform:none!important;box-shadow:none!important;margin:0;width:210mm;max-width:210mm}
+  /* 打印瞬间鼠标可能恰好压在纸面上：hover 底色一律不许进 PDF */
+  .page .r-sec,.page .r-sec:hover,.page li,.page li:hover,
+  .page h3,.page h3:hover{background:transparent!important;cursor:auto}
 }
 </style>
 <!-- 版式模板的 CSS 由脚本注入：预览与「导出 HTML」共用同一份，避免两处手抄走形 -->
@@ -2457,11 +2469,18 @@ function exportHtml(){
   toast('已导出 HTML（能直接打开，也能再导入本工具继续改）');
 }
 
+/* 打印/位图导出前先把纸面「冻结」：指针还停在纸面上也不会再亮起悬停底色，
+   否则底色会被打印/截图写进 PDF（曾出现整页淡紫底） */
+function lockPageHover(on){ document.body.classList.toggle('printing', !!on); }
+
 /* 打印路径：系统打印 → 矢量 PDF（文字可选中、可被 ATS 解析） */
 function exportPdf(){
   syncDocTitle();          /* 「另存为 PDF」的默认文件名取自文档标题，打印前再兜一次 */
   toast('打印窗口已打开：目标「另存为 PDF」 · 纸张 A4 · 边距「无」 · 缩放保持默认；技术栈底条已强制打印，不用勾「背景图形」');
-  setTimeout(()=> window.print(), 340);
+  lockPageHover(true);
+  window.addEventListener('afterprint', ()=> lockPageHover(false), { once:true });
+  /* 打印对话框关闭后兜底解锁：个别环境不派发 afterprint */
+  setTimeout(()=>{ window.print(); setTimeout(()=> lockPageHover(false), 600); }, 340);
 }
 
 /* ============ 导出前预览：大窗口确认，再生成 PDF ============ */
@@ -2552,7 +2571,9 @@ function exportImgPdf(){
   const hasLib = typeof html2canvas !== 'undefined' && window.jspdf && window.jspdf.jsPDF;
   if(!hasLib){
     toast('PDF 组件未加载（需联网），已改用打印导出');
-    setTimeout(()=> window.print(), 200);
+    lockPageHover(true);
+    window.addEventListener('afterprint', ()=> lockPageHover(false), { once:true });
+    setTimeout(()=>{ window.print(); setTimeout(()=> lockPageHover(false), 600); }, 200);
     return;
   }
   const btn = document.getElementById('pdfConfirm');
@@ -2560,9 +2581,11 @@ function exportImgPdf(){
   btn.disabled = true; btn.textContent = '生成中…';
 
   const { box, restore } = buildExportBox();
+  lockPageHover(true);            /* 截图期间纸面不再响应指针，底色不会被算进 canvas */
 
   const done = close=>{
     restore();
+    lockPageHover(false);
     btn.disabled = false; btn.textContent = old;
     if(close) closePdfPreview();
   };
