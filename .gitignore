@@ -3,6 +3,7 @@
 *.log
 t-*.html
 *.png
+!screenshot.png
 *.pdf
 # Office / 系统
 ~$*
