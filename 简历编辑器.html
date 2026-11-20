@@ -479,7 +479,7 @@ body.printing #page h3,body.printing #page h3:hover{background:transparent!impor
    0. 联系行：拆成「类型 + 内容」的条目，预览时再拼回一行
    ===================================================================== */
 const CONTACT_KINDS = [
-  { id: 'intent', label: '意向城市', prefix: '意向：' },
+  { id: 'intent', label: '意向城市', prefix: '意向城市：' },
   { id: 'phone',  label: '电话',     prefix: '' },
   { id: 'email',  label: '邮箱',     prefix: '' },
   { id: 'github', label: 'GitHub',   prefix: 'GitHub: ' },
@@ -492,7 +492,7 @@ const kindOf = id => CONTACT_KINDS.find(k=> k.id === id) || CONTACT_KINDS[5];
 function splitContacts(str){
   return String(str == null ? '' : str).split(/\s*｜\s*/).map(s=> s.trim()).filter(Boolean).map(seg=>{
     let m;
-    if((m = seg.match(/^意向[：:]\s*([\s\S]*)$/))) return { kind:'intent', label:'', text: m[1].trim() };
+    if((m = seg.match(/^(?:意向城市|意向)[：:]\s*([\s\S]*)$/))) return { kind:'intent', label:'', text: m[1].trim() };
     if((m = seg.match(/^GitHub[：:]\s*([\s\S]*)$/i))) return { kind:'github', label:'', text: m[1].trim() };
     if((m = seg.match(/^(?:作品|主页|博客|网站|链接)[：:]\s*([\s\S]*)$/))) return { kind:'site', label:'', text: m[1].trim() };
     if(/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(seg)) return { kind:'email', label:'', text: seg };
@@ -540,7 +540,7 @@ const DEFAULTS = () => ({
   meta: {
     name: '你的姓名',
     jobTitle: '求职意向（如：后端开发工程师）',
-    contact: '意向：城市 ｜ 13800000000 ｜ you@example.com ｜ GitHub：github.com/yourname ｜ 作品：example.com',
+    contact: '意向城市：城市 ｜ 13800000000 ｜ you@example.com ｜ GitHub：github.com/yourname ｜ 作品：example.com',
     summary: '一句话说清你能做什么：主攻方向 + 一个可量化成果 + 一个加分项，30–60 字，不堆名词。'
   },
   layout: { fs: 9.3, lh: 1.55, gap: 10, editorW: 430, preset: 'standard', tpl: 'classic' },
